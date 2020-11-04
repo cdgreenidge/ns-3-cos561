@@ -1,37 +1,4 @@
-/* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2013 ResiliNets, ITTC, University of Kansas
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- * Authors: Justin P. Rohrer, Truc Anh N. Nguyen <annguyen@ittc.ku.edu>, Siddharth Gangadhar <siddharth@ittc.ku.edu>
- *
- * James P.G. Sterbenz <jpgs@ittc.ku.edu>, director
- * ResiliNets Research Group  http://wiki.ittc.ku.edu/resilinets
- * Information and Telecommunication Technology Center (ITTC)
- * and Department of Electrical Engineering and Computer Science
- * The University of Kansas Lawrence, KS USA.
- *
- * Work supported in part by NSF FIND (Future Internet Design) Program
- * under grant CNS-0626918 (Postmodern Internet Architecture),
- * NSF grant CNS-1050226 (Multilayer Network Resilience Analysis and Experimentation on GENI),
- * US Department of Defense (DoD), and ITTC at The University of Kansas.
- *
- * “TCP Westwood(+) Protocol Implementation in ns-3”
- * Siddharth Gangadhar, Trúc Anh Ngọc Nguyễn , Greeshma Umapathi, and James P.G. Sterbenz,
- * ICST SIMUTools Workshop on ns-3 (WNS3), Cannes, France, March 2013
- */
+/* Simple topology */
 
 #include <iostream>
 #include <fstream>
@@ -213,26 +180,34 @@ TraceNextRx (std::string &next_rx_seq_file_name)
       MakeCallback (&NextRxTracer));
 }
 
+static void
+RestrictBandwidth (NetDeviceContainer &bottleneck_devices)
+{
+  assert (bottleneck_devices.GetN () == 2);
+  NS_LOG_INFO ("Restricting bottleneck bandwidth...");
+  Ptr<NetDevice> node = bottleneck_devices.Get (0);
+  node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
+  node = bottleneck_devices.Get (1);
+  node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
+}
+
 int
 main (int argc, char *argv[])
 {
   std::string transport_prot = "TcpWestwood";
-  double error_p = 0.0;
-  std::string bandwidth = "2Mbps";
-  std::string delay = "0.01ms";
-  std::string access_bandwidth = "10Mbps";
-  std::string access_delay = "45ms";
+  std::string bandwidth = "7.5Mbps";
+  double restriction_time = 800.0;
+  double delay = 0.01;
+  std::string access_bandwidth = "1000Mbps";
   bool tracing = false;
   std::string prefix_file_name = "TcpVariantsComparison";
   uint64_t data_mbytes = 0;
-  uint32_t mtu_bytes = 400;
-  uint16_t num_flows = 1;
+  uint32_t mtu_bytes = 15728;
   double duration = 100.0;
   uint32_t run = 0;
   bool flow_monitor = false;
   bool pcap = false;
   bool sack = true;
-  std::string queue_disc_type = "ns3::PfifoFastQueueDisc";
   std::string recovery = "ns3::TcpClassicRecovery";
 
   CommandLine cmd (__FILE__);
@@ -242,22 +217,17 @@ main (int argc, char *argv[])
                 "TcpBic, TcpYeah, TcpIllinois, TcpWestwood, TcpWestwoodPlus, TcpLedbat, "
                 "TcpLp, TcpDctcp",
                 transport_prot);
-  cmd.AddValue ("error_p", "Packet error rate", error_p);
-  cmd.AddValue ("bandwidth", "Bottleneck bandwidth", bandwidth);
-  cmd.AddValue ("delay", "Bottleneck delay", delay);
+  cmd.AddValue ("restriction_time", "Time to restrict bottleneck bandwidth", restriction_time);
+  cmd.AddValue ("delay", "Bottleneck delay, in ms", delay);
   cmd.AddValue ("access_bandwidth", "Access link bandwidth", access_bandwidth);
-  cmd.AddValue ("access_delay", "Access link delay", access_delay);
   cmd.AddValue ("tracing", "Flag to enable/disable tracing", tracing);
   cmd.AddValue ("prefix_name", "Prefix of output trace file", prefix_file_name);
   cmd.AddValue ("data", "Number of Megabytes of data to transmit", data_mbytes);
   cmd.AddValue ("mtu", "Size of IP packets to send in bytes", mtu_bytes);
-  cmd.AddValue ("num_flows", "Number of flows", num_flows);
   cmd.AddValue ("duration", "Time to allow flows to run in seconds", duration);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
   cmd.AddValue ("flow_monitor", "Enable flow monitor", flow_monitor);
   cmd.AddValue ("pcap_tracing", "Enable or disable PCAP tracing", pcap);
-  cmd.AddValue ("queue_disc_type", "Queue disc type for gateway (e.g. ns3::CoDelQueueDisc)",
-                queue_disc_type);
   cmd.AddValue ("sack", "Enable or disable SACK option", sack);
   cmd.AddValue ("recovery", "Recovery algorithm type to use (e.g., ns3::TcpPrrRecovery", recovery);
   cmd.Parse (argc, argv);
@@ -268,33 +238,30 @@ main (int argc, char *argv[])
   SeedManager::SetRun (run);
 
   // User may find it convenient to enable logging
-  //LogComponentEnable("TcpVariantsComparison", LOG_LEVEL_ALL);
+  //LogComponentEnable ("TcpVariantsComparison", LOG_LEVEL_ALL);
   //LogComponentEnable("BulkSendApplication", LOG_LEVEL_INFO);
   //LogComponentEnable("PfifoFastQueueDisc", LOG_LEVEL_ALL);
 
-  // Calculate the ADU size
-  Header *temp_header = new Ipv4Header ();
-  uint32_t ip_header = temp_header->GetSerializedSize ();
-  NS_LOG_LOGIC ("IP Header size is: " << ip_header);
-  delete temp_header;
-  temp_header = new TcpHeader ();
-  uint32_t tcp_header = temp_header->GetSerializedSize ();
-  NS_LOG_LOGIC ("TCP Header size is: " << tcp_header);
-  delete temp_header;
-  uint32_t tcp_adu_size = mtu_bytes - 20 - (ip_header + tcp_header);
-  NS_LOG_LOGIC ("TCP ADU size is: " << tcp_adu_size);
+  // Compute the access delay for 100ms RTT
+  double access_delay = 0.5 * (50.0 - delay);
 
   // Set the simulation start and stop time
   double start_time = 0.1;
   double stop_time = start_time + duration;
 
-  // 2 MB of TCP buffer
-  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (1 << 21));
-  Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (1 << 21));
+  // Configure TCP parameters
+  // We set the TCP buffer to bandwidth-delay product (BDP)
+  // RTT (delay) is 100ms, bottleneck bandwidth is 7.5 mebibits, so
+  // the BDP is 1e-1 * 7.86432e6 = 786432, roughly 0.7 Mb
+  // Packet size should be floor(786432 / 50) = 15,728 bits so 50 packets fit in the
+  // buffer
+  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (786432));
+  Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (786432));
   Config::SetDefault ("ns3::TcpSocketBase::Sack", BooleanValue (sack));
 
   Config::SetDefault ("ns3::TcpL4Protocol::RecoveryType",
                       TypeIdValue (TypeId::LookupByName (recovery)));
+
   // Select TCP variant
   if (transport_prot.compare ("ns3::TcpWestwoodPlus") == 0)
     {
@@ -313,113 +280,77 @@ main (int argc, char *argv[])
                           TypeIdValue (TypeId::LookupByName (transport_prot)));
     }
 
-  // Create gateways, sources, and sinks
+  // Create nodes
   NodeContainer gateways;
   gateways.Create (1);
   NodeContainer sources;
-  sources.Create (num_flows);
+  sources.Create (1);
   NodeContainer sinks;
-  sinks.Create (num_flows);
+  sinks.Create (1);
 
-  // Configure the error model
-  // Here we use RateErrorModel with packet error rate
-  Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-  uv->SetStream (50);
-  RateErrorModel error_model;
-  error_model.SetRandomVariable (uv);
-  error_model.SetUnit (RateErrorModel::ERROR_UNIT_PACKET);
-  error_model.SetRate (error_p);
+  // Create topology helpers
+  PointToPointHelper access_link;
+  access_link.SetDeviceAttribute ("DataRate", StringValue (access_bandwidth));
+  access_link.SetChannelAttribute ("Delay", StringValue (std::to_string (access_delay) + "ms"));
 
-  PointToPointHelper UnReLink;
-  UnReLink.SetDeviceAttribute ("DataRate", StringValue (bandwidth));
-  UnReLink.SetChannelAttribute ("Delay", StringValue (delay));
-  UnReLink.SetDeviceAttribute ("ReceiveErrorModel", PointerValue (&error_model));
+  PointToPointHelper bottleneck_link;
+  bottleneck_link.SetDeviceAttribute ("DataRate", StringValue (bandwidth));
+  bottleneck_link.SetChannelAttribute ("Delay", StringValue (std::to_string (delay) + "ms"));
 
   InternetStackHelper stack;
   stack.InstallAll ();
 
-  TrafficControlHelper tchPfifo;
-  tchPfifo.SetRootQueueDisc ("ns3::PfifoFastQueueDisc");
-
-  TrafficControlHelper tchCoDel;
-  tchCoDel.SetRootQueueDisc ("ns3::CoDelQueueDisc");
-
   Ipv4AddressHelper address;
   address.SetBase ("10.0.0.0", "255.255.255.0");
 
-  // Configure the sources and sinks net devices
-  // and the channels between the sources/sinks and the gateways
-  PointToPointHelper LocalLink;
-  LocalLink.SetDeviceAttribute ("DataRate", StringValue (access_bandwidth));
-  LocalLink.SetChannelAttribute ("Delay", StringValue (access_delay));
+  // Connect nodes
+  NetDeviceContainer access_devices = access_link.Install (sources.Get (0), gateways.Get (0));
+  address.NewNetwork ();
+  Ipv4InterfaceContainer interfaces = address.Assign (access_devices);
+  NetDeviceContainer bottleneck_devices = bottleneck_link.Install (gateways.Get (0), sinks.Get (0));
+  address.NewNetwork ();
+  interfaces = address.Assign (bottleneck_devices);
 
   Ipv4InterfaceContainer sink_interfaces;
-
-  DataRate access_b (access_bandwidth);
-  DataRate bottle_b (bandwidth);
-  Time access_d (access_delay);
-  Time bottle_d (delay);
-
-  uint32_t size = static_cast<uint32_t> ((std::min (access_b, bottle_b).GetBitRate () / 8) *
-                                         ((access_d + bottle_d) * 2).GetSeconds ());
-
-  Config::SetDefault ("ns3::PfifoFastQueueDisc::MaxSize",
-                      QueueSizeValue (QueueSize (QueueSizeUnit::PACKETS, size / mtu_bytes)));
-  Config::SetDefault ("ns3::CoDelQueueDisc::MaxSize",
-                      QueueSizeValue (QueueSize (QueueSizeUnit::BYTES, size)));
-
-  for (uint32_t i = 0; i < num_flows; i++)
-    {
-      NetDeviceContainer devices;
-      devices = LocalLink.Install (sources.Get (i), gateways.Get (0));
-      tchPfifo.Install (devices);
-      address.NewNetwork ();
-      Ipv4InterfaceContainer interfaces = address.Assign (devices);
-
-      devices = UnReLink.Install (gateways.Get (0), sinks.Get (i));
-      if (queue_disc_type.compare ("ns3::PfifoFastQueueDisc") == 0)
-        {
-          tchPfifo.Install (devices);
-        }
-      else if (queue_disc_type.compare ("ns3::CoDelQueueDisc") == 0)
-        {
-          tchCoDel.Install (devices);
-        }
-      else
-        {
-          NS_FATAL_ERROR ("Queue not recognized. Allowed values are ns3::CoDelQueueDisc or "
-                          "ns3::PfifoFastQueueDisc");
-        }
-      address.NewNetwork ();
-      interfaces = address.Assign (devices);
-      sink_interfaces.Add (interfaces.Get (1));
-    }
+  sink_interfaces.Add (interfaces.Get (1));
 
   NS_LOG_INFO ("Initialize Global Routing.");
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
+
+  // Configure mock FTP application
+
+  // Calculate how many bytes to to send in each TCP packet
+  Header *temp_header = new Ipv4Header ();
+  uint32_t ip_header = temp_header->GetSerializedSize ();
+  NS_LOG_LOGIC ("IP Header size is: " << ip_header);
+  delete temp_header;
+  temp_header = new TcpHeader ();
+  uint32_t tcp_header = temp_header->GetSerializedSize ();
+  NS_LOG_LOGIC ("TCP Header size is: " << tcp_header);
+  delete temp_header;
+  // Not sure why we subtract 20 here, but it was in the example...
+  uint32_t tcp_adu_size = mtu_bytes - 20 - (ip_header + tcp_header);
+  NS_LOG_LOGIC ("TCP ADU size is: " << tcp_adu_size);
 
   uint16_t port = 50000;
   Address sinkLocalAddress (InetSocketAddress (Ipv4Address::GetAny (), port));
   PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
 
-  for (uint16_t i = 0; i < sources.GetN (); i++)
-    {
-      AddressValue remoteAddress (InetSocketAddress (sink_interfaces.GetAddress (i, 0), port));
-      Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (tcp_adu_size));
-      BulkSendHelper ftp ("ns3::TcpSocketFactory", Address ());
-      ftp.SetAttribute ("Remote", remoteAddress);
-      ftp.SetAttribute ("SendSize", UintegerValue (tcp_adu_size));
-      ftp.SetAttribute ("MaxBytes", UintegerValue (data_mbytes * 1000000));
+  AddressValue remoteAddress (InetSocketAddress (sink_interfaces.GetAddress (0), port));
+  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (tcp_adu_size));
+  BulkSendHelper ftp ("ns3::TcpSocketFactory", Address ());
+  ftp.SetAttribute ("Remote", remoteAddress);
+  ftp.SetAttribute ("SendSize", UintegerValue (tcp_adu_size));
+  ftp.SetAttribute ("MaxBytes", UintegerValue (data_mbytes * 1000000));
 
-      ApplicationContainer sourceApp = ftp.Install (sources.Get (i));
-      sourceApp.Start (Seconds (start_time * i));
-      sourceApp.Stop (Seconds (stop_time - 3));
+  ApplicationContainer sourceApp = ftp.Install (sources.Get (0));
+  sourceApp.Start (Seconds (start_time));
+  sourceApp.Stop (Seconds (stop_time - 3));
 
-      sinkHelper.SetAttribute ("Protocol", TypeIdValue (TcpSocketFactory::GetTypeId ()));
-      ApplicationContainer sinkApp = sinkHelper.Install (sinks.Get (i));
-      sinkApp.Start (Seconds (start_time * i));
-      sinkApp.Stop (Seconds (stop_time));
-    }
+  sinkHelper.SetAttribute ("Protocol", TypeIdValue (TcpSocketFactory::GetTypeId ()));
+  ApplicationContainer sinkApp = sinkHelper.Install (sinks.Get (0));
+  sinkApp.Start (Seconds (start_time));
+  sinkApp.Stop (Seconds (stop_time));
 
   // Set up tracing if enabled
   if (tracing)
@@ -441,8 +372,8 @@ main (int argc, char *argv[])
 
   if (pcap)
     {
-      UnReLink.EnablePcapAll (prefix_file_name, true);
-      LocalLink.EnablePcapAll (prefix_file_name, true);
+      bottleneck_link.EnablePcapAll (prefix_file_name, true);
+      access_link.EnablePcapAll (prefix_file_name, true);
     }
 
   // Flow monitor
@@ -452,6 +383,7 @@ main (int argc, char *argv[])
       flowHelper.InstallAll ();
     }
 
+  Simulator::Schedule (Seconds (restriction_time), &RestrictBandwidth, bottleneck_devices);
   Simulator::Stop (Seconds (stop_time));
   Simulator::Run ();
 
