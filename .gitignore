@@ -30,6 +30,7 @@ coverity
 TAGS
 
 .lock-waf_*_build
+.vscode/
 .waf*
 
 build-dir/
