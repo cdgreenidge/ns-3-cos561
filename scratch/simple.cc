@@ -180,28 +180,35 @@ TraceNextRx (std::string &next_rx_seq_file_name)
       MakeCallback (&NextRxTracer));
 }
 
-// static void
-// RestrictBandwidth (NetDeviceContainer &bottleneck_devices)
-// {
-//   assert (bottleneck_devices.GetN () == 2);
-//   NS_LOG_INFO ("Restricting bottleneck bandwidth...");
-//   Ptr<NetDevice> node = bottleneck_devices.Get (0);
-//   node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
-//   node = bottleneck_devices.Get (1);
-//   node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
-// }
+/**
+ * Callback to restrict bottleneck bandwidth to 2.5mbs.
+ *
+ * @param bottleneck_devices A NetDeviceContainer holding the nodes on either end of
+ *        the bottleneck link
+ */
+static void
+RestrictBandwidth (NetDeviceContainer &bottleneck_devices)
+{
+  assert (bottleneck_devices.GetN () == 2);
+  NS_LOG_INFO ("Restricting bottleneck bandwidth...");
+  Ptr<NetDevice> node = bottleneck_devices.Get (0);
+  node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
+  node = bottleneck_devices.Get (1);
+  node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
+}
 
 int
 main (int argc, char *argv[])
 {
   std::string transport_prot = "TcpWestwood";
   std::string bandwidth = "7.5Mbps"; // Initial bottleneck bandwidth
+  double restriction_time = 800.0; // When to restrict bottleneck bandwidth
   std::string access_bandwidth = "1000Mbps";
   std::string delay = "25ms"; // For 100ms RTT total
   bool tracing = false;
   std::string prefix_file_name = "simple-topology";
   uint32_t mtu_bytes = 15728; // So that 50 packets fit in the buffer
-  double duration = 100.0;
+  double duration = 1200.0;
   uint32_t run = 0;
   bool flow_monitor = false;
   bool pcap = false;
@@ -215,12 +222,13 @@ main (int argc, char *argv[])
                 "TcpBic, TcpYeah, TcpIllinois, TcpWestwood, TcpWestwoodPlus, TcpLedbat, "
                 "TcpLp, TcpDctcp",
                 transport_prot);
-  cmd.AddValue ("tracing", "Flag to enable/disable tracing", tracing);
-  cmd.AddValue ("prefix_name", "Prefix of output trace file", prefix_file_name);
-  cmd.AddValue ("duration", "Time to allow flow to run in seconds", duration);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
+  cmd.AddValue ("prefix_name", "Prefix of output trace file", prefix_file_name);
+  cmd.AddValue ("tracing", "Flag to enable/disable tracing", tracing);
   cmd.AddValue ("flow_monitor", "Enable flow monitor", flow_monitor);
   cmd.AddValue ("pcap_tracing", "Enable or disable PCAP tracing", pcap);
+  cmd.AddValue ("duration", "Time to allow flow to run in seconds", duration);
+  cmd.AddValue ("restriction_time", "Time to restrict bottleneck bandwidth", restriction_time);
   cmd.AddValue ("sack", "Enable or disable SACK option", sack);
   cmd.AddValue ("recovery", "Recovery algorithm type to use (e.g., ns3::TcpPrrRecovery", recovery);
   cmd.Parse (argc, argv);
@@ -375,6 +383,7 @@ main (int argc, char *argv[])
     }
 
   Simulator::Stop (Seconds (stop_time));
+  Simulator::Schedule (Seconds (restriction_time), &RestrictBandwidth, devices);
   Simulator::Run ();
 
   if (flow_monitor)
