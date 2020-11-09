@@ -180,23 +180,32 @@ TraceNextRx (std::string &next_rx_seq_file_name)
       MakeCallback (&NextRxTracer));
 }
 
+// static void
+// RestrictBandwidth (NetDeviceContainer &bottleneck_devices)
+// {
+//   assert (bottleneck_devices.GetN () == 2);
+//   NS_LOG_INFO ("Restricting bottleneck bandwidth...");
+//   Ptr<NetDevice> node = bottleneck_devices.Get (0);
+//   node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
+//   node = bottleneck_devices.Get (1);
+//   node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
+// }
+
 int
 main (int argc, char *argv[])
 {
   std::string transport_prot = "TcpWestwood";
-  std::string bandwidth = "2Mbps";
-  std::string delay = "0.01ms";
-  std::string access_bandwidth = "10Mbps";
-  std::string access_delay = "45ms";
+  std::string bandwidth = "7.5Mbps"; // Initial bottleneck bandwidth
+  std::string access_bandwidth = "1000Mbps";
+  std::string delay = "25ms"; // For 100ms RTT total
   bool tracing = false;
-  std::string prefix_file_name = "TcpVariantsComparison";
-  uint32_t mtu_bytes = 400;
+  std::string prefix_file_name = "simple-topology";
+  uint32_t mtu_bytes = 15728; // So that 50 packets fit in the buffer
   double duration = 100.0;
   uint32_t run = 0;
   bool flow_monitor = false;
   bool pcap = false;
   bool sack = true;
-  std::string queue_disc_type = "ns3::PfifoFastQueueDisc";
   std::string recovery = "ns3::TcpClassicRecovery";
 
   CommandLine cmd (__FILE__);
@@ -206,19 +215,12 @@ main (int argc, char *argv[])
                 "TcpBic, TcpYeah, TcpIllinois, TcpWestwood, TcpWestwoodPlus, TcpLedbat, "
                 "TcpLp, TcpDctcp",
                 transport_prot);
-  cmd.AddValue ("bandwidth", "Bottleneck bandwidth", bandwidth);
-  cmd.AddValue ("delay", "Bottleneck delay", delay);
-  cmd.AddValue ("access_bandwidth", "Access link bandwidth", access_bandwidth);
-  cmd.AddValue ("access_delay", "Access link delay", access_delay);
   cmd.AddValue ("tracing", "Flag to enable/disable tracing", tracing);
   cmd.AddValue ("prefix_name", "Prefix of output trace file", prefix_file_name);
-  cmd.AddValue ("mtu", "Size of IP packets to send in bytes", mtu_bytes);
-  cmd.AddValue ("duration", "Time to allow flows to run in seconds", duration);
+  cmd.AddValue ("duration", "Time to allow flow to run in seconds", duration);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
   cmd.AddValue ("flow_monitor", "Enable flow monitor", flow_monitor);
   cmd.AddValue ("pcap_tracing", "Enable or disable PCAP tracing", pcap);
-  cmd.AddValue ("queue_disc_type", "Queue disc type for gateway (e.g. ns3::CoDelQueueDisc)",
-                queue_disc_type);
   cmd.AddValue ("sack", "Enable or disable SACK option", sack);
   cmd.AddValue ("recovery", "Recovery algorithm type to use (e.g., ns3::TcpPrrRecovery", recovery);
   cmd.Parse (argc, argv);
@@ -249,13 +251,18 @@ main (int argc, char *argv[])
   double start_time = 0.1;
   double stop_time = start_time + duration;
 
-  // 2 MB of TCP buffer
-  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (1 << 21));
-  Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (1 << 21));
+  // Configure TCP parameters
+  // We set the TCP buffer to bandwidth-delay product (BDP)
+  // RTT (delay) is 100ms, bottleneck bandwidth is 7.5 mebibits, so
+  // the BDP is 1e-1 * 7.86432e6 = 786432, roughly 0.7 Mb
+  // Packet size should be floor(786432 / 50) = 15,728 bits so 50 packets fit in the
+  // buffer
+  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (786432));
+  Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (786432));
   Config::SetDefault ("ns3::TcpSocketBase::Sack", BooleanValue (sack));
-
   Config::SetDefault ("ns3::TcpL4Protocol::RecoveryType",
                       TypeIdValue (TypeId::LookupByName (recovery)));
+
   // Select TCP variant
   if (transport_prot.compare ("ns3::TcpWestwoodPlus") == 0)
     {
@@ -296,7 +303,7 @@ main (int argc, char *argv[])
   // and the channels between the sources/sinks and the gateways
   PointToPointHelper LocalLink;
   LocalLink.SetDeviceAttribute ("DataRate", StringValue (access_bandwidth));
-  LocalLink.SetChannelAttribute ("Delay", StringValue (access_delay));
+  LocalLink.SetChannelAttribute ("Delay", StringValue (delay));
 
   Ipv4InterfaceContainer sink_interfaces;
 
@@ -342,13 +349,17 @@ main (int argc, char *argv[])
       ascii_wrap = new OutputStreamWrapper ((prefix_file_name + "-ascii").c_str (), std::ios::out);
       stack.EnableAsciiIpv4All (ascii_wrap);
 
-      Simulator::Schedule (Seconds (0.00001), &TraceCwnd, prefix_file_name + "-cwnd.data");
-      Simulator::Schedule (Seconds (0.00001), &TraceSsThresh, prefix_file_name + "-ssth.data");
-      Simulator::Schedule (Seconds (0.00001), &TraceRtt, prefix_file_name + "-rtt.data");
-      Simulator::Schedule (Seconds (0.00001), &TraceRto, prefix_file_name + "-rto.data");
-      Simulator::Schedule (Seconds (0.00001), &TraceNextTx, prefix_file_name + "-next-tx.data");
-      Simulator::Schedule (Seconds (0.00001), &TraceInFlight, prefix_file_name + "-inflight.data");
-      Simulator::Schedule (Seconds (0.1), &TraceNextRx, prefix_file_name + "-next-rx.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceCwnd, prefix_file_name + "-cwnd.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceSsThresh, prefix_file_name + "-ssth.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceRtt, prefix_file_name + "-rtt.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceRto, prefix_file_name + "-rto.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceNextTx, prefix_file_name + "-next-tx.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceInFlight,
+                           prefix_file_name + "-inflight.data");
+      // Beware: if RTT is modified, the Rx buffer may not be created before
+      // trace registration, which will cause an error. Increase the scheduled time
+      // as necessary to make sure the trace is registered after buffer creation.
+      Simulator::Schedule (Seconds (0.15), &TraceNextRx, prefix_file_name + "-next-rx.data");
     }
 
   if (pcap)
@@ -357,7 +368,6 @@ main (int argc, char *argv[])
       LocalLink.EnablePcapAll (prefix_file_name, true);
     }
 
-  // Flow monitor
   FlowMonitorHelper flowHelper;
   if (flow_monitor)
     {
