@@ -278,11 +278,11 @@ main (int argc, char *argv[])
 
   // Create gateways, sources, and sinks
   NodeContainer gateways;
-  gateways.Create (1);
+  gateways.Create (1); // Node ID 0
   NodeContainer sources;
-  sources.Create (1);
+  sources.Create (1); // Node ID 1
   NodeContainer sinks;
-  sinks.Create (1);
+  sinks.Create (1); // Node ID 2
 
   PointToPointHelper UnReLink;
   UnReLink.SetDeviceAttribute ("DataRate", StringValue (bandwidth));
@@ -319,24 +319,21 @@ main (int argc, char *argv[])
   Address sinkLocalAddress (InetSocketAddress (Ipv4Address::GetAny (), port));
   PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
 
-  for (uint16_t i = 0; i < sources.GetN (); i++)
-    {
-      AddressValue remoteAddress (InetSocketAddress (sink_interfaces.GetAddress (i, 0), port));
-      Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (tcp_adu_size));
-      BulkSendHelper ftp ("ns3::TcpSocketFactory", Address ());
-      ftp.SetAttribute ("Remote", remoteAddress);
-      ftp.SetAttribute ("SendSize", UintegerValue (tcp_adu_size));
-      ftp.SetAttribute ("MaxBytes", UintegerValue (data_mbytes * 1000000));
+  AddressValue remoteAddress (InetSocketAddress (sink_interfaces.GetAddress (0, 0), port));
+  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (tcp_adu_size));
+  BulkSendHelper ftp ("ns3::TcpSocketFactory", Address ());
+  ftp.SetAttribute ("Remote", remoteAddress);
+  ftp.SetAttribute ("SendSize", UintegerValue (tcp_adu_size));
+  ftp.SetAttribute ("MaxBytes", UintegerValue (data_mbytes * 1000000));
 
-      ApplicationContainer sourceApp = ftp.Install (sources.Get (i));
-      sourceApp.Start (Seconds (start_time * i));
-      sourceApp.Stop (Seconds (stop_time - 3));
+  ApplicationContainer sourceApp = ftp.Install (sources.Get (0));
+  sourceApp.Start (Seconds (0));
+  sourceApp.Stop (Seconds (stop_time - 3));
 
-      sinkHelper.SetAttribute ("Protocol", TypeIdValue (TcpSocketFactory::GetTypeId ()));
-      ApplicationContainer sinkApp = sinkHelper.Install (sinks.Get (i));
-      sinkApp.Start (Seconds (start_time * i));
-      sinkApp.Stop (Seconds (stop_time));
-    }
+  sinkHelper.SetAttribute ("Protocol", TypeIdValue (TcpSocketFactory::GetTypeId ()));
+  ApplicationContainer sinkApp = sinkHelper.Install (sinks.Get (0));
+  sinkApp.Start (Seconds (0));
+  sinkApp.Stop (Seconds (stop_time));
 
   // Set up tracing if enabled
   if (tracing)
