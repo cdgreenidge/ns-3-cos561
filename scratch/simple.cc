@@ -181,83 +181,83 @@ TraceNextRx (std::string &next_rx_seq_file_name)
 }
 
 /**
- * Callback to restrict bottleneck bandwidth to 2.5mbs.
+ * Callback to restrict bottleneck bandwidth
  *
- * @param bottleneck_devices A NetDeviceContainer holding the nodes on either end of
+ * @param bottleneckDevices A NetDeviceContainer holding the nodes on either end of
  *        the bottleneck link
+ * @param restrictedBandwidth The bandwidth to restrict the link to
  */
 static void
-RestrictBandwidth (NetDeviceContainer &bottleneck_devices)
+RestrictBandwidth (NetDeviceContainer &bottleneckDevices, std::string restrictedBandwidth)
 {
-  assert (bottleneck_devices.GetN () == 2);
+  assert (bottleneckDevices.GetN () == 2);
   NS_LOG_INFO ("Restricting bottleneck bandwidth...");
-  Ptr<NetDevice> node = bottleneck_devices.Get (0);
+  Ptr<NetDevice> node = bottleneckDevices.Get (0);
   node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
-  node = bottleneck_devices.Get (1);
+  node = bottleneckDevices.Get (1);
   node->SetAttribute ("DataRate", StringValue ("2.5Mbps"));
 }
 
 int
 main (int argc, char *argv[])
 {
-  std::string transport_prot = "TcpWestwood";
+  std::string transportProt = "TcpWestwood";
   std::string bandwidth = "7.5Mbps"; // Initial bottleneck bandwidth
-  double restriction_time = 800.0; // When to restrict bottleneck bandwidth
-  std::string access_bandwidth = "1000Mbps";
+  double restrictionTime = 800.0; // When to restrict bottleneck bandwidth
+  std::string restrictedBandwidth = "2.5Mbps";
+  std::string accessBandwidth = "1000Mbps";
   std::string delay = "25ms"; // For 100ms RTT total
   bool tracing = false;
-  std::string prefix_file_name = "simple-topology";
-  uint32_t mtu_bytes = 15728; // So that 50 packets fit in the buffer
+  std::string prefixFileName = "simple-topology";
+  uint32_t mtuBytes = 15728; // So that 50 packets fit in the buffer
   double duration = 1200.0;
   uint32_t run = 0;
-  bool flow_monitor = false;
+  bool flowMonitor = false;
   bool pcap = false;
   bool sack = true;
   std::string recovery = "ns3::TcpClassicRecovery";
 
   CommandLine cmd (__FILE__);
-  cmd.AddValue ("transport_prot",
+  cmd.AddValue ("transportProt",
                 "Transport protocol to use: TcpNewReno, TcpLinuxReno, "
                 "TcpHybla, TcpHighSpeed, TcpHtcp, TcpVegas, TcpScalable, TcpVeno, "
                 "TcpBic, TcpYeah, TcpIllinois, TcpWestwood, TcpWestwoodPlus, TcpLedbat, "
                 "TcpLp, TcpDctcp",
-                transport_prot);
+                transportProt);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
-  cmd.AddValue ("prefix_name", "Prefix of output trace file", prefix_file_name);
+  cmd.AddValue ("prefix_name", "Prefix of output trace file", prefixFileName);
   cmd.AddValue ("tracing", "Flag to enable/disable tracing", tracing);
-  cmd.AddValue ("flow_monitor", "Enable flow monitor", flow_monitor);
+  cmd.AddValue ("flow_monitor", "Enable flow monitor", flowMonitor);
   cmd.AddValue ("pcap_tracing", "Enable or disable PCAP tracing", pcap);
   cmd.AddValue ("duration", "Time to allow flow to run in seconds", duration);
-  cmd.AddValue ("restriction_time", "Time to restrict bottleneck bandwidth", restriction_time);
+  cmd.AddValue ("restriction_time", "Time to restrict bottleneck bandwidth", restrictionTime);
   cmd.AddValue ("sack", "Enable or disable SACK option", sack);
   cmd.AddValue ("recovery", "Recovery algorithm type to use (e.g., ns3::TcpPrrRecovery", recovery);
   cmd.Parse (argc, argv);
 
-  transport_prot = std::string ("ns3::") + transport_prot;
+  transportProt = std::string ("ns3::") + transportProt;
 
   SeedManager::SetSeed (1);
   SeedManager::SetRun (run);
+  double startTime = 0.1;
+  double stopTime = startTime + duration;
 
-  // User may find it convenient to enable logging
+  // The user may find it convenient to enable logging
   //LogComponentEnable("TcpVariantsComparison", LOG_LEVEL_ALL);
   //LogComponentEnable("BulkSendApplication", LOG_LEVEL_INFO);
   //LogComponentEnable("PfifoFastQueueDisc", LOG_LEVEL_ALL);
 
-  // Calculate the ADU size
-  Header *temp_header = new Ipv4Header ();
-  uint32_t ip_header = temp_header->GetSerializedSize ();
-  NS_LOG_LOGIC ("IP Header size is: " << ip_header);
-  delete temp_header;
-  temp_header = new TcpHeader ();
-  uint32_t tcp_header = temp_header->GetSerializedSize ();
-  NS_LOG_LOGIC ("TCP Header size is: " << tcp_header);
-  delete temp_header;
-  uint32_t tcp_adu_size = mtu_bytes - 20 - (ip_header + tcp_header);
-  NS_LOG_LOGIC ("TCP ADU size is: " << tcp_adu_size);
-
-  // Set the simulation start and stop time
-  double start_time = 0.1;
-  double stop_time = start_time + duration;
+  // Calculate the application data unit size required for our desired packet size
+  Header *tempHeader = new Ipv4Header ();
+  uint32_t ipHeader = tempHeader->GetSerializedSize ();
+  NS_LOG_LOGIC ("IP Header size is: " << ipHeader);
+  delete tempHeader;
+  tempHeader = new TcpHeader ();
+  uint32_t tcpHeader = tempHeader->GetSerializedSize ();
+  NS_LOG_LOGIC ("TCP Header size is: " << tcpHeader);
+  delete tempHeader;
+  uint32_t tcpAduSize = mtuBytes - 20 - (ipHeader + tcpHeader);
+  NS_LOG_LOGIC ("TCP ADU size is: " << tcpAduSize);
 
   // Configure TCP parameters
   // We set the TCP buffer to bandwidth-delay product (BDP)
@@ -272,7 +272,7 @@ main (int argc, char *argv[])
                       TypeIdValue (TypeId::LookupByName (recovery)));
 
   // Select TCP variant
-  if (transport_prot.compare ("ns3::TcpWestwoodPlus") == 0)
+  if (transportProt.compare ("ns3::TcpWestwoodPlus") == 0)
     {
       // TcpWestwoodPlus is not an actual TypeId name; we need TcpWestwood here
       Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
@@ -283,13 +283,27 @@ main (int argc, char *argv[])
   else
     {
       TypeId tcpTid;
-      NS_ABORT_MSG_UNLESS (TypeId::LookupByNameFailSafe (transport_prot, &tcpTid),
-                           "TypeId " << transport_prot << " not found");
+      NS_ABORT_MSG_UNLESS (TypeId::LookupByNameFailSafe (transportProt, &tcpTid),
+                           "TypeId " << transportProt << " not found");
       Config::SetDefault ("ns3::TcpL4Protocol::SocketType",
-                          TypeIdValue (TypeId::LookupByName (transport_prot)));
+                          TypeIdValue (TypeId::LookupByName (transportProt)));
     }
 
-  // Create gateways, sources, and sinks
+  // Create topology helpers
+  PointToPointHelper accessLink;
+  accessLink.SetDeviceAttribute ("DataRate", StringValue (accessBandwidth));
+  accessLink.SetChannelAttribute ("Delay", StringValue (delay));
+
+  PointToPointHelper bottleneckLink;
+  bottleneckLink.SetDeviceAttribute ("DataRate", StringValue (bandwidth));
+  bottleneckLink.SetChannelAttribute ("Delay", StringValue (delay));
+
+  InternetStackHelper stack;
+
+  Ipv4AddressHelper address;
+  address.SetBase ("10.0.0.0", "255.255.255.0");
+
+  // Create topology
   NodeContainer gateways;
   gateways.Create (1); // Node ID 0
   NodeContainer sources;
@@ -297,100 +311,88 @@ main (int argc, char *argv[])
   NodeContainer sinks;
   sinks.Create (1); // Node ID 2
 
-  PointToPointHelper UnReLink;
-  UnReLink.SetDeviceAttribute ("DataRate", StringValue (bandwidth));
-  UnReLink.SetChannelAttribute ("Delay", StringValue (delay));
-
-  InternetStackHelper stack;
   stack.InstallAll ();
 
-  Ipv4AddressHelper address;
-  address.SetBase ("10.0.0.0", "255.255.255.0");
-
-  // Configure the sources and sinks net devices
-  // and the channels between the sources/sinks and the gateways
-  PointToPointHelper LocalLink;
-  LocalLink.SetDeviceAttribute ("DataRate", StringValue (access_bandwidth));
-  LocalLink.SetChannelAttribute ("Delay", StringValue (delay));
-
-  Ipv4InterfaceContainer sink_interfaces;
-
-  NetDeviceContainer devices;
-  devices = LocalLink.Install (sources.Get (0), gateways.Get (0));
+  NetDeviceContainer accessDevices = accessLink.Install (sources.Get (0), gateways.Get (0));
   address.NewNetwork ();
-  Ipv4InterfaceContainer interfaces = address.Assign (devices);
+  Ipv4InterfaceContainer accessInterfaces = address.Assign (accessDevices);
 
-  devices = UnReLink.Install (gateways.Get (0), sinks.Get (0));
+  NetDeviceContainer bottleneckDevices = bottleneckLink.Install (gateways.Get (0), sinks.Get (0));
   address.NewNetwork ();
-  interfaces = address.Assign (devices);
-  sink_interfaces.Add (interfaces.Get (1));
+  Ipv4InterfaceContainer bottleneckInterfaces = address.Assign (bottleneckDevices);
+
+  Ipv4InterfaceContainer sinkInterfaces;
+  sinkInterfaces.Add (bottleneckInterfaces.Get (1));
 
   NS_LOG_INFO ("Initialize Global Routing.");
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
 
+  // Configure FTP application (which will send our data)
   uint16_t port = 50000;
   Address sinkLocalAddress (InetSocketAddress (Ipv4Address::GetAny (), port));
   PacketSinkHelper sinkHelper ("ns3::TcpSocketFactory", sinkLocalAddress);
 
-  AddressValue remoteAddress (InetSocketAddress (sink_interfaces.GetAddress (0, 0), port));
-  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (tcp_adu_size));
+  AddressValue remoteAddress (InetSocketAddress (sinkInterfaces.GetAddress (0, 0), port));
+  Config::SetDefault ("ns3::TcpSocket::SegmentSize", UintegerValue (tcpAduSize));
   BulkSendHelper ftp ("ns3::TcpSocketFactory", Address ());
   ftp.SetAttribute ("Remote", remoteAddress);
-  ftp.SetAttribute ("SendSize", UintegerValue (tcp_adu_size));
+  ftp.SetAttribute ("SendSize", UintegerValue (tcpAduSize));
   ftp.SetAttribute ("MaxBytes", UintegerValue (0));
 
   ApplicationContainer sourceApp = ftp.Install (sources.Get (0));
   sourceApp.Start (Seconds (0));
-  sourceApp.Stop (Seconds (stop_time - 3));
+  sourceApp.Stop (Seconds (stopTime - 3));
 
   sinkHelper.SetAttribute ("Protocol", TypeIdValue (TcpSocketFactory::GetTypeId ()));
   ApplicationContainer sinkApp = sinkHelper.Install (sinks.Get (0));
   sinkApp.Start (Seconds (0));
-  sinkApp.Stop (Seconds (stop_time));
+  sinkApp.Stop (Seconds (stopTime));
 
-  // Set up tracing if enabled
+  // Configure monitoring
   if (tracing)
     {
       std::ofstream ascii;
       Ptr<OutputStreamWrapper> ascii_wrap;
-      ascii.open ((prefix_file_name + "-ascii").c_str ());
-      ascii_wrap = new OutputStreamWrapper ((prefix_file_name + "-ascii").c_str (), std::ios::out);
+      ascii.open ((prefixFileName + "-ascii").c_str ());
+      ascii_wrap = new OutputStreamWrapper ((prefixFileName + "-ascii").c_str (), std::ios::out);
       stack.EnableAsciiIpv4All (ascii_wrap);
 
-      Simulator::Schedule (Seconds (0.0000001), &TraceCwnd, prefix_file_name + "-cwnd.data");
-      Simulator::Schedule (Seconds (0.0000001), &TraceSsThresh, prefix_file_name + "-ssth.data");
-      Simulator::Schedule (Seconds (0.0000001), &TraceRtt, prefix_file_name + "-rtt.data");
-      Simulator::Schedule (Seconds (0.0000001), &TraceRto, prefix_file_name + "-rto.data");
-      Simulator::Schedule (Seconds (0.0000001), &TraceNextTx, prefix_file_name + "-next-tx.data");
-      Simulator::Schedule (Seconds (0.0000001), &TraceInFlight,
-                           prefix_file_name + "-inflight.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceCwnd, prefixFileName + "-cwnd.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceSsThresh, prefixFileName + "-ssth.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceRtt, prefixFileName + "-rtt.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceRto, prefixFileName + "-rto.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceNextTx, prefixFileName + "-next-tx.data");
+      Simulator::Schedule (Seconds (0.0000001), &TraceInFlight, prefixFileName + "-inflight.data");
       // Beware: if RTT is modified, the Rx buffer may not be created before
       // trace registration, which will cause an error. Increase the scheduled time
       // as necessary to make sure the trace is registered after buffer creation.
-      Simulator::Schedule (Seconds (0.15), &TraceNextRx, prefix_file_name + "-next-rx.data");
+      Simulator::Schedule (Seconds (0.15), &TraceNextRx, prefixFileName + "-next-rx.data");
     }
 
   if (pcap)
     {
-      UnReLink.EnablePcapAll (prefix_file_name, true);
-      LocalLink.EnablePcapAll (prefix_file_name, true);
+      bottleneckLink.EnablePcapAll (prefixFileName, true);
+      accessLink.EnablePcapAll (prefixFileName, true);
     }
 
   FlowMonitorHelper flowHelper;
-  if (flow_monitor)
+  if (flowMonitor)
     {
       flowHelper.InstallAll ();
     }
 
-  Simulator::Stop (Seconds (stop_time));
-  Simulator::Schedule (Seconds (restriction_time), &RestrictBandwidth, devices);
+  // Run simulation
+  Simulator::Stop (Seconds (stopTime));
+  Simulator::Schedule (Seconds (restrictionTime), &RestrictBandwidth, bottleneckDevices,
+                       restrictedBandwidth);
   Simulator::Run ();
 
-  if (flow_monitor)
+  // Dump flow and clean up
+  if (flowMonitor)
     {
-      flowHelper.SerializeToXmlFile (prefix_file_name + ".flowmonitor", true, true);
+      flowHelper.SerializeToXmlFile (prefixFileName + ".flowmonitor", true, true);
     }
-
   Simulator::Destroy ();
+
   return 0;
 }
