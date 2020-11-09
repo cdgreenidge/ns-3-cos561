@@ -193,7 +193,6 @@ main (int argc, char *argv[])
   std::string prefix_file_name = "TcpVariantsComparison";
   uint64_t data_mbytes = 0;
   uint32_t mtu_bytes = 400;
-  uint16_t num_flows = 1;
   double duration = 100.0;
   uint32_t run = 0;
   bool flow_monitor = false;
@@ -218,7 +217,6 @@ main (int argc, char *argv[])
   cmd.AddValue ("prefix_name", "Prefix of output trace file", prefix_file_name);
   cmd.AddValue ("data", "Number of Megabytes of data to transmit", data_mbytes);
   cmd.AddValue ("mtu", "Size of IP packets to send in bytes", mtu_bytes);
-  cmd.AddValue ("num_flows", "Number of flows", num_flows);
   cmd.AddValue ("duration", "Time to allow flows to run in seconds", duration);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
   cmd.AddValue ("flow_monitor", "Enable flow monitor", flow_monitor);
@@ -284,9 +282,9 @@ main (int argc, char *argv[])
   NodeContainer gateways;
   gateways.Create (1);
   NodeContainer sources;
-  sources.Create (num_flows);
+  sources.Create (1);
   NodeContainer sinks;
-  sinks.Create (num_flows);
+  sinks.Create (1);
 
   // Configure the error model
   // Here we use RateErrorModel with packet error rate
@@ -316,18 +314,15 @@ main (int argc, char *argv[])
 
   Ipv4InterfaceContainer sink_interfaces;
 
-  for (uint32_t i = 0; i < num_flows; i++)
-    {
-      NetDeviceContainer devices;
-      devices = LocalLink.Install (sources.Get (i), gateways.Get (0));
-      address.NewNetwork ();
-      Ipv4InterfaceContainer interfaces = address.Assign (devices);
+  NetDeviceContainer devices;
+  devices = LocalLink.Install (sources.Get (0), gateways.Get (0));
+  address.NewNetwork ();
+  Ipv4InterfaceContainer interfaces = address.Assign (devices);
 
-      devices = UnReLink.Install (gateways.Get (0), sinks.Get (i));
-      address.NewNetwork ();
-      interfaces = address.Assign (devices);
-      sink_interfaces.Add (interfaces.Get (1));
-    }
+  devices = UnReLink.Install (gateways.Get (0), sinks.Get (0));
+  address.NewNetwork ();
+  interfaces = address.Assign (devices);
+  sink_interfaces.Add (interfaces.Get (1));
 
   NS_LOG_INFO ("Initialize Global Routing.");
   Ipv4GlobalRoutingHelper::PopulateRoutingTables ();
