@@ -184,7 +184,6 @@ int
 main (int argc, char *argv[])
 {
   std::string transport_prot = "TcpWestwood";
-  double error_p = 0.0;
   std::string bandwidth = "2Mbps";
   std::string delay = "0.01ms";
   std::string access_bandwidth = "10Mbps";
@@ -208,7 +207,6 @@ main (int argc, char *argv[])
                 "TcpBic, TcpYeah, TcpIllinois, TcpWestwood, TcpWestwoodPlus, TcpLedbat, "
                 "TcpLp, TcpDctcp",
                 transport_prot);
-  cmd.AddValue ("error_p", "Packet error rate", error_p);
   cmd.AddValue ("bandwidth", "Bottleneck bandwidth", bandwidth);
   cmd.AddValue ("delay", "Bottleneck delay", delay);
   cmd.AddValue ("access_bandwidth", "Access link bandwidth", access_bandwidth);
@@ -286,19 +284,9 @@ main (int argc, char *argv[])
   NodeContainer sinks;
   sinks.Create (1);
 
-  // Configure the error model
-  // Here we use RateErrorModel with packet error rate
-  Ptr<UniformRandomVariable> uv = CreateObject<UniformRandomVariable> ();
-  uv->SetStream (50);
-  RateErrorModel error_model;
-  error_model.SetRandomVariable (uv);
-  error_model.SetUnit (RateErrorModel::ERROR_UNIT_PACKET);
-  error_model.SetRate (error_p);
-
   PointToPointHelper UnReLink;
   UnReLink.SetDeviceAttribute ("DataRate", StringValue (bandwidth));
   UnReLink.SetChannelAttribute ("Delay", StringValue (delay));
-  UnReLink.SetDeviceAttribute ("ReceiveErrorModel", PointerValue (&error_model));
 
   InternetStackHelper stack;
   stack.InstallAll ();
