@@ -190,7 +190,6 @@ main (int argc, char *argv[])
   std::string access_delay = "45ms";
   bool tracing = false;
   std::string prefix_file_name = "TcpVariantsComparison";
-  uint64_t data_mbytes = 0;
   uint32_t mtu_bytes = 400;
   double duration = 100.0;
   uint32_t run = 0;
@@ -213,7 +212,6 @@ main (int argc, char *argv[])
   cmd.AddValue ("access_delay", "Access link delay", access_delay);
   cmd.AddValue ("tracing", "Flag to enable/disable tracing", tracing);
   cmd.AddValue ("prefix_name", "Prefix of output trace file", prefix_file_name);
-  cmd.AddValue ("data", "Number of Megabytes of data to transmit", data_mbytes);
   cmd.AddValue ("mtu", "Size of IP packets to send in bytes", mtu_bytes);
   cmd.AddValue ("duration", "Time to allow flows to run in seconds", duration);
   cmd.AddValue ("run", "Run index (for setting repeatable seeds)", run);
@@ -324,7 +322,7 @@ main (int argc, char *argv[])
   BulkSendHelper ftp ("ns3::TcpSocketFactory", Address ());
   ftp.SetAttribute ("Remote", remoteAddress);
   ftp.SetAttribute ("SendSize", UintegerValue (tcp_adu_size));
-  ftp.SetAttribute ("MaxBytes", UintegerValue (data_mbytes * 1000000));
+  ftp.SetAttribute ("MaxBytes", UintegerValue (0));
 
   ApplicationContainer sourceApp = ftp.Install (sources.Get (0));
   sourceApp.Start (Seconds (0));
