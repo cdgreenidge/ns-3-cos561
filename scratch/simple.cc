@@ -21,6 +21,8 @@
 #include "ns3/packet-sink-helper.h"
 #include "ns3/flow-monitor-module.h"
 
+// #include <boost/accumulators/statistics/rolling_mean.hpp>
+
 
 using namespace ns3;
 
@@ -38,6 +40,9 @@ static Ptr<OutputStreamWrapper> nextTxStream;
 static Ptr<OutputStreamWrapper> nextRxStream;
 static Ptr<OutputStreamWrapper> inFlightStream;
 
+static Ptr<OutputStreamWrapper> ackReceiveTimeStream;
+static Ptr<OutputStreamWrapper> packetReceiveTimeStream;
+
 AsciiTraceHelper ascii;
 std::string throughput_tr_file_name="simple-topology-throughput.data";
 static Ptr<OutputStreamWrapper> throughputStream = ascii.CreateFileStream (throughput_tr_file_name.c_str ());
@@ -53,6 +58,97 @@ uint64_t lastTotalRx = 0;                     /* The value of the last total rec
 uint32_t pktcounter = 0;
 uint32_t oldcounter = 0;
 uint32_t oldtime = 0;
+
+// For current state of the system - Tara
+// Hardcoded values based on calculation in datafile_analysis.ipynb
+// static double minAckInterArrivalTime = 3.847737644214032051841216628E-11;
+// static double maxAckInterArrivalTime = 2.765653250839936847269441079E-9;
+// static uint32_t minPacketInterArrivalTime = 
+// static uint32_t maxPacketInterArrivalTime = 
+// static uint32_t minSsThreshValue = 0;
+// static uint32_t maxSsThreshValue = 4294967295;
+// static double minRttRatioValue = 0.14173962713973684;
+// static double maxRttRatioValue = 7.05519;
+
+
+// For moving averages - Tara
+template <typename T, typename Total, size_t N>
+class MovingAverage
+{
+  public:
+    void addSample (T sample)
+    {
+        if (num_samples_ < N)
+        {
+            samples_[num_samples_++] = sample;
+            total_ += sample;
+        }
+        else
+        {
+            T oldest = samples_[num_samples_++ % N];
+            total_ += sample - oldest;
+            oldest = sample;
+        }
+    }
+
+    T getTotal() const { return total_ / std::min(num_samples_, N); }
+
+  private:
+    T samples_[N];
+    size_t num_samples_{0};
+    Total total_{0};
+};
+
+const int movingAvgWindow = 100;
+MovingAverage<int64_t, double, movingAvgWindow> timeBetweenAcks;
+MovingAverage<int64_t, double, movingAvgWindow> timeBetweenSentPackets;
+
+Time stateLastPacketArrivalTime;
+Time stateLastAckArrivalTime;
+
+/* IN PROGRESS: Updates the following parameters of TCPLearning state:
+   1) Moving average of inter-arrival times between newly received ACKS
+   2) Moving average of inter-arrival times between packets sent by sender
+   3) Ratio of current RTT to best RTT observed
+   - Tara
+*/
+void updateState(Ptr<FlowMonitor> flowMon, FlowMonitorHelper *fmhelper) {
+  std::map<FlowId, FlowMonitor::FlowStats> flowStats = flowMon->GetFlowStats();
+  Ptr<Ipv4FlowClassifier> classing = DynamicCast<Ipv4FlowClassifier> (fmhelper->GetClassifier());
+  
+  for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator stats = flowStats.begin (); stats != flowStats.end (); ++stats)
+    {
+      if (stats->first == 1){ // Sender --> Receiver flow
+        Time fmLastPacketArrivalTime = stats->second.timeLastRxPacket;
+        // Check if any new packets have arrived at receiver since we last updated state and if so, update moving average
+        if (!fmLastPacketArrivalTime.Compare(stateLastPacketArrivalTime)) { 
+          timeBetweenSentPackets.addSample(fmLastPacketArrivalTime.GetNanoSeconds() - stateLastPacketArrivalTime.GetNanoSeconds());
+        }
+      }
+
+      else { // Receiver --> Sender flow
+        Time fmLastAckArrivalTime = stats->second.timeLastRxPacket;
+        // Check if any new acks have arrived at sender since we last updated state and if so, update moving average
+        if (!fmLastAckArrivalTime.Compare(stateLastAckArrivalTime)) { 
+          timeBetweenSentPackets.addSample(fmLastAckArrivalTime.GetNanoSeconds() - stateLastAckArrivalTime.GetNanoSeconds());
+        }
+      }
+    }
+}
+
+/* IN PROGRESS: Returns the current discretized state in a bin between 1 - 10: 
+   1) Moving average of inter-arrival times between newly received ACKS
+   2) Moving average of inter-arrival times between packets sent by sender
+   3) Ratio of current RTT to best RTT observed
+   4) Slow start threshold
+   - Tara
+*/ 
+int* getState(int state[]) {
+
+
+  return state;
+}
+
 
 void ReceivePacket (Ptr<const Packet> packet, const Address &)
 {
@@ -110,6 +206,21 @@ CalculateThroughput1()
   *throughputStream->GetStream () << now.GetSeconds () << " " << cur << std::endl;
 }
 
+// Tracer for time between acks - Tara
+static void
+AckTracer (SequenceNumber32 oldValue, SequenceNumber32 newValue)
+{
+  NS_UNUSED (oldValue);
+  *ackReceiveTimeStream->GetStream () << newValue << " " << Simulator::Now ().GetFemtoSeconds () << " " << std::endl;
+}
+
+// Tracer for time between packets - Tara
+static void
+PacketTracer (SequenceNumber32 oldValue, SequenceNumber32 newValue)
+{
+  NS_UNUSED (oldValue);
+  *packetReceiveTimeStream->GetStream () << newValue << " " << Simulator::Now ().GetFemtoSeconds () << " " << std::endl;
+}
 
 static void
 CwndTracer (uint32_t oldval, uint32_t newval)
@@ -255,6 +366,33 @@ TraceNextRx (std::string &next_rx_seq_file_name)
       MakeCallback (&NextRxTracer));
 }
 
+// Helper to find estimates for the min and max differences in ack arrival times - Tara
+static void
+TraceAcks (std::string ack_tr_file_name)
+{
+  AsciiTraceHelper ascii;
+  ackReceiveTimeStream = ascii.CreateFileStream (ack_tr_file_name.c_str ());
+  // Trace acks on sender (node 1)
+  Config::ConnectWithoutContext ("/NodeList/1/$ns3::TcpL4Protocol/SocketList/0/HighestRxAck",
+                                 MakeCallback (&AckTracer));
+}
+
+// Helper to find estimates for the min and max differences in packet arrival times - Tara
+static void
+TracePackets (std::string packet_tr_file_name)
+{
+  AsciiTraceHelper ascii;
+  packetReceiveTimeStream = ascii.CreateFileStream (packet_tr_file_name.c_str ());
+  // Trace packets on receiver (node 2)
+  Config::ConnectWithoutContext ("/NodeList/1/$ns3::TcpL4Protocol/SocketList/0/HighestRxAck",
+                                 MakeCallback (&PacketTracer));
+  //Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/1/RxBuffer/NextRxSequence",
+                                 //MakeCallback (&PacketTracer));
+
+  // Config::ConnectWithoutContext ("/NodeList/2/$ns3::TcpL4Protocol/SocketList/0/HighestRxSequence",
+  //                                MakeCallback (&PacketTracer));
+}
+
 /**
  * Callback to restrict bottleneck bandwidth
  *
@@ -276,7 +414,8 @@ RestrictBandwidth (NetDeviceContainer &bottleneckDevices, std::string restricted
 int
 main (int argc, char *argv[])
 {
-  std::string transportProt = "TcpWestwood";
+  // std::string transportProt = "TcpWestwood";
+  std::string transportProt = "TcpNewReno";
   std::string bandwidth = "7.5Mbps"; // Initial bottleneck bandwidth
   double restrictionTime = 800.0; // When to restrict bottleneck bandwidth
   std::string restrictedBandwidth = "2.5Mbps";
@@ -333,6 +472,7 @@ main (int argc, char *argv[])
   delete tempHeader;
   uint32_t tcpAduSize = mtuBytes - 20 - (ipHeader + tcpHeader);
   NS_LOG_LOGIC ("TCP ADU size is: " << tcpAduSize);
+  NS_LOG_LOGIC ("TCP Protocol is: " << transportProt);
 
   // Configure TCP parameters
   // We set the TCP buffer to bandwidth-delay product (BDP)
@@ -448,6 +588,10 @@ main (int argc, char *argv[])
       Simulator::Schedule (Seconds (0.0000001), &TraceRto, prefixFileName + "-rto.data");
       Simulator::Schedule (Seconds (0.0000001), &TraceNextTx, prefixFileName + "-next-tx.data");
       Simulator::Schedule (Seconds (0.0000001), &TraceInFlight, prefixFileName + "-inflight.data");
+
+      Simulator::Schedule (Seconds(0.000000001), &TraceAcks, prefixFileName + "-ackreceivetimes.data");
+      Simulator::Schedule (Seconds(0.000000001), &TracePackets, prefixFileName + "-packetreceivetimes.data");
+
       
       // throughput added by olga
 
