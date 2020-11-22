@@ -141,7 +141,7 @@ double bestRtt = INFINITY;
 //     }
 // }
 
-// Assigns a bin for provided value. Assumes value falls between min and max
+// Assigns a bin for provided value. Assumes value falls between min and max -Tara
 int assignBin (double value, double min, double max, int numBins) {
   // edge case
   if (value == max) return numBins - 1; 
@@ -167,16 +167,16 @@ int assignBin (double value, double min, double max, int numBins) {
    4) Slow start threshold
    - Tara
 */ 
-int* getState(int state[]) {
+void getState(int state[]) {
   int numBins = 10;
   state[0] = assignBin(movingAvgTimeBetweenAcks.getMovingAverage(), minAckInterArrivalTime, maxAckInterArrivalTime, numBins);
   // state[1] = assignBin(movingAvgTimeBetweenSentPackets.getMovingAverage(), minPacketInterArrivalTime, maxPacketInterArrivalTime, numBins);
-  state[1] = assignBin(currentRtt / bestRtt, minRttRatioValue, maxRttRatioValue, numBins);
+  state[2] = assignBin(currentRtt / bestRtt, minRttRatioValue, maxRttRatioValue, numBins);
   state[3] = assignBin(ssThreshValue, minSsThreshValue, maxSsThreshValue, numBins);
 
-  return state;
-}
+  std::cout<< "state: " << state[0] << ", " << state[2] << ", " << state[3] <<std::endl;
 
+}
 
 void ReceivePacket (Ptr<const Packet> packet, const Address &)
 {
@@ -671,6 +671,11 @@ main (int argc, char *argv[])
 //    {
 //      flowHelper.InstallAll ();
 //    }
+
+  // Test getState
+  int state[] = { 10, 20, 30, 40 };
+  Simulator::Schedule (Seconds (0.5), &getState, state);
+
 
   // Run simulation
   Simulator::Stop (Seconds (stopTime));
