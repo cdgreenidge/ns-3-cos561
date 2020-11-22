@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <math.h>
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
@@ -20,9 +21,6 @@
 #include "ns3/packet-sink.h"
 #include "ns3/packet-sink-helper.h"
 #include "ns3/flow-monitor-module.h"
-
-// #include <boost/accumulators/statistics/rolling_mean.hpp>
-
 
 using namespace ns3;
 
@@ -61,14 +59,14 @@ uint32_t oldtime = 0;
 
 // For current state of the system - Tara
 // Hardcoded values based on calculation in datafile_analysis.ipynb
-// static double minAckInterArrivalTime = 3.847737644214032051841216628E-11;
-// static double maxAckInterArrivalTime = 2.765653250839936847269441079E-9;
+static double minAckInterArrivalTime = 3.847737644214032051841216628E-11;
+static double maxAckInterArrivalTime = 2.765653250839936847269441079E-9;
 // static uint32_t minPacketInterArrivalTime = 
 // static uint32_t maxPacketInterArrivalTime = 
-// static uint32_t minSsThreshValue = 0;
-// static uint32_t maxSsThreshValue = 4294967295;
-// static double minRttRatioValue = 0.14173962713973684;
-// static double maxRttRatioValue = 7.05519;
+static uint32_t minSsThreshValue = 0;
+static uint32_t maxSsThreshValue = 4294967295;
+static double minRttRatioValue = 0.14173962713973684;
+static double maxRttRatioValue = 7.05519;
 
 
 // For moving averages - Tara
@@ -91,7 +89,7 @@ class MovingAverage
         }
     }
 
-    T getTotal() const { return total_ / std::min(num_samples_, N); }
+    T getMovingAverage() const { return total_ / std::min(num_samples_, N); }
 
   private:
     T samples_[N];
@@ -99,12 +97,19 @@ class MovingAverage
     Total total_{0};
 };
 
-const int movingAvgWindow = 100;
-MovingAverage<int64_t, double, movingAvgWindow> timeBetweenAcks;
-MovingAverage<int64_t, double, movingAvgWindow> timeBetweenSentPackets;
+const int movingAvgWindow = 10000; // use last 10000 samples to calculate moving avg
+MovingAverage<int64_t, double, movingAvgWindow> movingAvgTimeBetweenAcks;
+MovingAverage<int64_t, double, movingAvgWindow> movingAvgTimeBetweenSentPackets;
 
-Time stateLastPacketArrivalTime;
-Time stateLastAckArrivalTime;
+Time lastAckArrivalTime;
+Time lastPacketArrivalTime;
+
+int64_t numAcksSeenSinceLastUpdate = 0;
+int64_t numSentPacketsSeenSinceLastUpdate = 0;
+
+double currentRtt = 0;
+double bestRtt = INFINITY;
+
 
 /* IN PROGRESS: Updates the following parameters of TCPLearning state:
    1) Moving average of inter-arrival times between newly received ACKS
@@ -112,28 +117,47 @@ Time stateLastAckArrivalTime;
    3) Ratio of current RTT to best RTT observed
    - Tara
 */
-void updateState(Ptr<FlowMonitor> flowMon, FlowMonitorHelper *fmhelper) {
-  std::map<FlowId, FlowMonitor::FlowStats> flowStats = flowMon->GetFlowStats();
-  Ptr<Ipv4FlowClassifier> classing = DynamicCast<Ipv4FlowClassifier> (fmhelper->GetClassifier());
+// void updateState(Ptr<FlowMonitor> flowMon, FlowMonitorHelper *fmhelper) {
+//   std::map<FlowId, FlowMonitor::FlowStats> flowStats = flowMon->GetFlowStats();
+//   Ptr<Ipv4FlowClassifier> classing = DynamicCast<Ipv4FlowClassifier> (fmhelper->GetClassifier());
   
-  for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator stats = flowStats.begin (); stats != flowStats.end (); ++stats)
-    {
-      if (stats->first == 1){ // Sender --> Receiver flow
-        Time fmLastPacketArrivalTime = stats->second.timeLastRxPacket;
-        // Check if any new packets have arrived at receiver since we last updated state and if so, update moving average
-        if (!fmLastPacketArrivalTime.Compare(stateLastPacketArrivalTime)) { 
-          timeBetweenSentPackets.addSample(fmLastPacketArrivalTime.GetNanoSeconds() - stateLastPacketArrivalTime.GetNanoSeconds());
-        }
-      }
+//   for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator stats = flowStats.begin (); stats != flowStats.end (); ++stats)
+//     {
+//       if (stats->first == 1){ // Sender --> Receiver flow
+//         Time fmLastPacketArrivalTime = stats->second.timeLastRxPacket;
+//         // Check if any new packets have arrived at receiver since we last updated state and if so, update moving average
+//         if (!fmLastPacketArrivalTime.Compare(stateLastPacketArrivalTime)) { 
+//           timeBetweenSentPackets.addSample(fmLastPacketArrivalTime.GetFemtoSeconds() - stateLastPacketArrivalTime.GetFemtoSeconds());
+//         }
+//       }
 
-      else { // Receiver --> Sender flow
-        Time fmLastAckArrivalTime = stats->second.timeLastRxPacket;
-        // Check if any new acks have arrived at sender since we last updated state and if so, update moving average
-        if (!fmLastAckArrivalTime.Compare(stateLastAckArrivalTime)) { 
-          timeBetweenSentPackets.addSample(fmLastAckArrivalTime.GetNanoSeconds() - stateLastAckArrivalTime.GetNanoSeconds());
-        }
-      }
+//       else { // Receiver --> Sender flow
+//         Time fmLastAckArrivalTime = stats->second.timeLastRxPacket;
+//         // Check if any new acks have arrived at sender since we last updated state and if so, update moving average
+//         if (!fmLastAckArrivalTime.Compare(stateLastAckArrivalTime)) { 
+//           timeBetweenSentPackets.addSample(fmLastAckArrivalTime.GetFemtoSeconds() - stateLastAckArrivalTime.GetFemtoSeconds());
+//         }
+//       }
+//     }
+// }
+
+// Assigns a bin for provided value. Assumes value falls between min and max
+int assignBin (double value, double min, double max, int numBins) {
+  // edge case
+  if (value == max) return numBins - 1; 
+
+  double interval = (max - min) / numBins;
+  double shiftedValue = value - min;
+  int bin = 0;
+
+  for (int b = 0; b < numBins; b++) {
+    if (shiftedValue >= interval * b && shiftedValue < interval * (b + 1)) {
+      bin = b;
+      break;
     }
+  }
+
+  return bin;
 }
 
 /* IN PROGRESS: Returns the current discretized state in a bin between 1 - 10: 
@@ -144,7 +168,11 @@ void updateState(Ptr<FlowMonitor> flowMon, FlowMonitorHelper *fmhelper) {
    - Tara
 */ 
 int* getState(int state[]) {
-
+  int numBins = 10;
+  state[0] = assignBin(movingAvgTimeBetweenAcks.getMovingAverage(), minAckInterArrivalTime, maxAckInterArrivalTime, numBins);
+  // state[1] = assignBin(movingAvgTimeBetweenSentPackets.getMovingAverage(), minPacketInterArrivalTime, maxPacketInterArrivalTime, numBins);
+  state[1] = assignBin(currentRtt / bestRtt, minRttRatioValue, maxRttRatioValue, numBins);
+  state[3] = assignBin(ssThreshValue, minSsThreshValue, maxSsThreshValue, numBins);
 
   return state;
 }
@@ -211,7 +239,16 @@ static void
 AckTracer (SequenceNumber32 oldValue, SequenceNumber32 newValue)
 {
   NS_UNUSED (oldValue);
-  *ackReceiveTimeStream->GetStream () << newValue << " " << Simulator::Now ().GetFemtoSeconds () << " " << std::endl;
+  Time currentTime = Simulator::Now ();
+  *ackReceiveTimeStream->GetStream () << newValue << " " << currentTime.GetFemtoSeconds() << " " << std::endl;
+
+  // Update estimate for arrival time between acks
+  numAcksSeenSinceLastUpdate = newValue - oldValue; // this should never be 0
+  double currentEstimatedTimeBetweenAcks = (currentTime.GetFemtoSeconds() - lastAckArrivalTime.GetFemtoSeconds()) / numAcksSeenSinceLastUpdate;
+  movingAvgTimeBetweenAcks.addSample(currentEstimatedTimeBetweenAcks);
+
+  lastAckArrivalTime = currentTime;
+
 }
 
 // Tracer for time between packets - Tara
@@ -219,7 +256,15 @@ static void
 PacketTracer (SequenceNumber32 oldValue, SequenceNumber32 newValue)
 {
   NS_UNUSED (oldValue);
-  *packetReceiveTimeStream->GetStream () << newValue << " " << Simulator::Now ().GetFemtoSeconds () << " " << std::endl;
+  Time currentTime = Simulator::Now ();
+  *packetReceiveTimeStream->GetStream () << newValue << " " << currentTime.GetFemtoSeconds() << " " << std::endl;
+
+  // Update estimate for arrival time between packets
+  numSentPacketsSeenSinceLastUpdate = newValue - oldValue; // this should never be 0
+  double currentEstimatedTimeBetweenPackets = (currentTime.GetFemtoSeconds() - lastPacketArrivalTime.GetFemtoSeconds()) / numSentPacketsSeenSinceLastUpdate;
+  movingAvgTimeBetweenSentPackets.addSample(currentEstimatedTimeBetweenPackets);
+
+  lastPacketArrivalTime = currentTime;
 }
 
 static void
@@ -267,6 +312,10 @@ RttTracer (Time oldval, Time newval)
     }
   *rttStream->GetStream () << Simulator::Now ().GetSeconds () << " " << newval.GetSeconds ()
                            << std::endl;
+
+  // Update current rtt and best rtt, if necessary
+  currentRtt = newval.GetSeconds();
+  if (currentRtt < bestRtt) bestRtt = currentRtt;
 }
 
 static void
