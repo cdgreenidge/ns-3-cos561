@@ -6,13 +6,13 @@
 namespace ns3 {
 
 MovingAvg::MovingAvg (int size)
-    : m_underfilled (true), m_index (0), m_maxSize (size), m_buffer (std::vector<float> ())
+    : m_underfilled (true), m_index (0), m_maxSize (size), m_buffer (std::vector<double> ())
 {
   m_buffer.resize (m_maxSize);
 }
 
 void
-MovingAvg::Enqueue (float item)
+MovingAvg::Record (double item)
 {
   m_buffer[m_index] = item;
   int nextIndex = (m_index + 1) % m_maxSize;
@@ -23,7 +23,7 @@ MovingAvg::Enqueue (float item)
   m_index = nextIndex;
 }
 
-float
+double
 MovingAvg::Avg ()
 {
   if (m_underfilled && m_index == 0)
@@ -40,12 +40,33 @@ MovingAvg::Avg ()
       size = m_maxSize;
     }
 
-  float sum = 0.0;
+  double sum = 0.0;
   for (auto value : m_buffer)
     {
       sum += value;
     }
   return sum / size;
+}
+
+CurrentBestRatio::CurrentBestRatio ()
+    : m_best (std::numeric_limits<double>::max ()), m_current (std::numeric_limits<double>::max ())
+{
+}
+
+void
+CurrentBestRatio::Record (double item)
+{
+  if (item < m_best)
+    {
+      m_best = item;
+    }
+  m_current = item;
+}
+
+double
+CurrentBestRatio::Ratio ()
+{
+  return m_current / m_best;
 }
 
 NS_LOG_COMPONENT_DEFINE ("TcpLearning");
@@ -68,8 +89,8 @@ TcpLearning::TcpLearning (void) : TcpNewReno ()
 // m_ackInterarrivalUpper (0.1),
 // m_packetInterarrivalLower (0.0),
 // m_packetInterarrivalUpper (0.1),
-// m_rttRatioLower (0.0),
-// m_rttRatioUpper (1.0),
+// m_rttRatioLower (1.0),
+// m_rttRatioUpper (100.0),
 // m_ssthreshLower (0.0),
 // m_ssthreshUpper (100000.0)
 {

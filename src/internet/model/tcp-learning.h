@@ -10,14 +10,26 @@ class MovingAvg
 {
 public:
   MovingAvg (int size);
-  void Enqueue (float item);
-  float Avg ();
+  void Record (double item);
+  double Avg ();
 
 private:
   bool m_underfilled;
   int m_index; // Next position to write
   int m_maxSize;
-  std::vector<float> m_buffer;
+  std::vector<double> m_buffer;
+};
+
+class CurrentBestRatio
+{
+public:
+  CurrentBestRatio ();
+  void Record (double item);
+  double Ratio ();
+
+private:
+  double m_best;
+  double m_current;
 };
 
 class TcpSocketState;
