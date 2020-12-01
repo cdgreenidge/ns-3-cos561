@@ -275,6 +275,7 @@ def build(bld):
         'test/tcp-bic-test.cc',
         'test/tcp-yeah-test.cc',
         'test/tcp-illinois-test.cc',
+        'test/tcp-learning-test.cc',
         'test/tcp-htcp-test.cc',
         'test/tcp-lp-test.cc',
         'test/tcp-ledbat-test.cc',

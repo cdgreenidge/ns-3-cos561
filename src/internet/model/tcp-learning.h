@@ -2,8 +2,23 @@
 #define TCPLEARNING_H
 
 #include "tcp-congestion-ops.h"
+#include <vector>
 
 namespace ns3 {
+
+class MovingAvg
+{
+public:
+  MovingAvg (int size);
+  void Enqueue (float item);
+  float Avg ();
+
+private:
+  bool m_underfilled;
+  int m_index; // Next position to write
+  int m_maxSize;
+  std::vector<float> m_buffer;
+};
 
 class TcpSocketState;
 
@@ -59,6 +74,19 @@ public:
   virtual void PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time &rtt);
 
   virtual Ptr<TcpCongestionOps> Fork ();
+
+private:
+  // State discretization parameters. All times in seconds.
+  // int m_numIntervals;
+  // int m_movingAverageWindowSize;
+  // double m_ackInterarrivalLower;
+  // double m_ackInterarrivalUpper;
+  // double m_packetInterarrivalLower;
+  // double m_packetInterarrivalUpper;
+  // double m_rttRatioLower;
+  // double m_rttRatioUpper;
+  // double m_ssthreshLower;
+  // double m_ssthreshUpper;
 };
 
 } // namespace ns3
