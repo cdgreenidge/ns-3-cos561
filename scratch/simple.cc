@@ -21,7 +21,6 @@
 #include "ns3/packet-sink-helper.h"
 #include "ns3/flow-monitor-module.h"
 
-
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("Simple");
@@ -39,77 +38,94 @@ static Ptr<OutputStreamWrapper> nextRxStream;
 static Ptr<OutputStreamWrapper> inFlightStream;
 
 AsciiTraceHelper ascii;
-std::string throughput_tr_file_name="simple-topology-throughput.data";
-static Ptr<OutputStreamWrapper> throughputStream = ascii.CreateFileStream (throughput_tr_file_name.c_str ());
+std::string throughput_tr_file_name = "simple-topology-throughput.data";
+static Ptr<OutputStreamWrapper> throughputStream =
+    ascii.CreateFileStream (throughput_tr_file_name.c_str ());
 
 static uint32_t cWndValue;
 static uint32_t ssThreshValue;
 
 // for CalculateThroughput1
-Ptr<PacketSink> sink;                         /* Pointer to the packet sink application */
-uint64_t lastTotalRx = 0;                     /* The value of the last total received bytes */
+Ptr<PacketSink> sink; /* Pointer to the packet sink application */
+uint64_t lastTotalRx = 0; /* The value of the last total received bytes */
 
 // for CalculateThroughput3
 uint32_t pktcounter = 0;
 uint32_t oldcounter = 0;
 uint32_t oldtime = 0;
 
-void ReceivePacket (Ptr<const Packet> packet, const Address &)
+void
+ReceivePacket (Ptr<const Packet> packet, const Address &)
 {
   pktcounter += 1;
 }
 
-void CalculateThroughput3(uint32_t tcpAduSize)
+void
+CalculateThroughput3 (uint32_t tcpAduSize)
 {
   double now = Simulator::Now ().GetSeconds ();
-  double throughput = (pktcounter - oldcounter)*tcpAduSize / (now - oldtime);
+  double throughput = (pktcounter - oldcounter) * tcpAduSize / (now - oldtime);
   NS_LOG_UNCOND ("Throughput (Mb/sec) = " << throughput * 8 / 1024 / 1024);
-    
-  *throughputStream->GetStream () << now << " " << throughput * 8 /1024/1024 << std::endl;
+
+  *throughputStream->GetStream () << now << " " << throughput * 8 / 1024 / 1024 << std::endl;
 
   oldcounter = pktcounter;
   oldtime = now;
-  Simulator::Schedule(Seconds(1), &CalculateThroughput3, tcpAduSize);
+  Simulator::Schedule (Seconds (1), &CalculateThroughput3, tcpAduSize);
 }
-
 
 void
 CalculateThroughput2 (Ptr<FlowMonitor> flowMon, FlowMonitorHelper *fmhelper)
 {
-  std::map<FlowId, FlowMonitor::FlowStats> flowStats = flowMon->GetFlowStats();
-  Ptr<Ipv4FlowClassifier> classing = DynamicCast<Ipv4FlowClassifier> (fmhelper->GetClassifier());
-  for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator stats = flowStats.begin (); stats != flowStats.end (); ++stats)
+  std::map<FlowId, FlowMonitor::FlowStats> flowStats = flowMon->GetFlowStats ();
+  Ptr<Ipv4FlowClassifier> classing = DynamicCast<Ipv4FlowClassifier> (fmhelper->GetClassifier ());
+  for (std::map<FlowId, FlowMonitor::FlowStats>::const_iterator stats = flowStats.begin ();
+       stats != flowStats.end (); ++stats)
     {
       Ipv4FlowClassifier::FiveTuple t = classing->FindFlow (stats->first);
-      std::cout<<"Flow ID            : " << stats->first <<" ; "<< t.sourceAddress <<" -----> "<< t.destinationAddress<<std::endl;
-//            std::cout<<"Tx Packets = " << stats->second.txPackets<<std::endl;
-//            std::cout<<"Rx Packets = " << stats->second.rxPackets<<std::endl;
-      std::cout<<"Duration        : "<<stats->second.timeLastRxPacket.GetSeconds()-stats->second.timeFirstTxPacket.GetSeconds()<<std::endl;
-      std::cout<<"Last Received Packet    : "<< stats->second.timeLastRxPacket.GetSeconds()<<" Seconds"<<std::endl;
-      std::cout<<"Throughput: " << stats->second.rxBytes * 8.0 / (stats->second.timeLastRxPacket.GetSeconds()-stats->second.timeFirstTxPacket.GetSeconds())/1024/1024  << " Mbps"<<std::endl;
-      std::cout<<"---------------------------------------------------------------------------"<<std::endl;
-      if (stats->first == 1){
-            *throughputStream->GetStream () << Simulator::Now ().GetSeconds () << " " << stats->second.rxBytes * 8.0 / (stats->second.timeLastRxPacket.GetSeconds()-stats->second.timeFirstTxPacket.GetSeconds())/1024/1024 << std::endl;
-
-      }
-
+      std::cout << "Flow ID            : " << stats->first << " ; " << t.sourceAddress << " -----> "
+                << t.destinationAddress << std::endl;
+      //            std::cout<<"Tx Packets = " << stats->second.txPackets<<std::endl;
+      //            std::cout<<"Rx Packets = " << stats->second.rxPackets<<std::endl;
+      std::cout << "Duration        : "
+                << stats->second.timeLastRxPacket.GetSeconds () -
+                       stats->second.timeFirstTxPacket.GetSeconds ()
+                << std::endl;
+      std::cout << "Last Received Packet    : " << stats->second.timeLastRxPacket.GetSeconds ()
+                << " Seconds" << std::endl;
+      std::cout << "Throughput: "
+                << stats->second.rxBytes * 8.0 /
+                       (stats->second.timeLastRxPacket.GetSeconds () -
+                        stats->second.timeFirstTxPacket.GetSeconds ()) /
+                       1024 / 1024
+                << " Mbps" << std::endl;
+      std::cout << "---------------------------------------------------------------------------"
+                << std::endl;
+      if (stats->first == 1)
+        {
+          *throughputStream->GetStream () << Simulator::Now ().GetSeconds () << " "
+                                          << stats->second.rxBytes * 8.0 /
+                                                 (stats->second.timeLastRxPacket.GetSeconds () -
+                                                  stats->second.timeFirstTxPacket.GetSeconds ()) /
+                                                 1024 / 1024
+                                          << std::endl;
+        }
     }
-  Simulator::Schedule(Seconds(1),&CalculateThroughput2, flowMon, fmhelper);
-
+  Simulator::Schedule (Seconds (1), &CalculateThroughput2, flowMon, fmhelper);
 }
 
 void
-CalculateThroughput1()
+CalculateThroughput1 ()
 {
-    // https://www.nsnam.org/doxygen/wifi-tcp_8cc_source.html
-  Time now = Simulator::Now ();                                         /* Return the simulator's virtual time. */
-  double cur = (sink->GetTotalRx () - lastTotalRx) * (double) 8 / 1024 / 1024 / 0.1;     /* Convert Application RX Packets to MBits. */
+  // https://www.nsnam.org/doxygen/wifi-tcp_8cc_source.html
+  Time now = Simulator::Now (); /* Return the simulator's virtual time. */
+  double cur = (sink->GetTotalRx () - lastTotalRx) * (double) 8 / 1024 / 1024 /
+               0.1; /* Convert Application RX Packets to MBits. */
   //std::cout << now.GetSeconds () << "s: \t" << cur << " Mbit/s" << std::endl;
   lastTotalRx = sink->GetTotalRx ();
-  Simulator::Schedule (Seconds(1), &CalculateThroughput1);
+  Simulator::Schedule (Seconds (1), &CalculateThroughput1);
   *throughputStream->GetStream () << now.GetSeconds () << " " << cur << std::endl;
 }
-
 
 static void
 CwndTracer (uint32_t oldval, uint32_t newval)
@@ -276,7 +292,7 @@ RestrictBandwidth (NetDeviceContainer &bottleneckDevices, std::string restricted
 int
 main (int argc, char *argv[])
 {
-  std::string transportProt = "TcpWestwood";
+  std::string transportProt = "TcpLearning";
   std::string bandwidth = "7.5Mbps"; // Initial bottleneck bandwidth
   double restrictionTime = 800.0; // When to restrict bottleneck bandwidth
   std::string restrictedBandwidth = "2.5Mbps";
@@ -420,7 +436,7 @@ main (int argc, char *argv[])
 
   sinkHelper.SetAttribute ("Protocol", TypeIdValue (TcpSocketFactory::GetTypeId ()));
   ApplicationContainer sinkApp = sinkHelper.Install (sinks.Get (0));
-    
+
   // sink added by olga
   sink = StaticCast<PacketSink> (sinkApp.Get (0));
 
@@ -428,11 +444,11 @@ main (int argc, char *argv[])
   sinkApp.Stop (Seconds (stopTime));
 
   FlowMonitorHelper flowHelper;
-    
+
   // added by olga
   Ptr<FlowMonitor> monitor;
-  monitor = flowHelper.InstallAll();
-    
+  monitor = flowHelper.InstallAll ();
+
   // Configure monitoring
   if (tracing)
     {
@@ -448,19 +464,20 @@ main (int argc, char *argv[])
       Simulator::Schedule (Seconds (0.0000001), &TraceRto, prefixFileName + "-rto.data");
       Simulator::Schedule (Seconds (0.0000001), &TraceNextTx, prefixFileName + "-next-tx.data");
       Simulator::Schedule (Seconds (0.0000001), &TraceInFlight, prefixFileName + "-inflight.data");
-      
+
       // throughput added by olga
 
       // Schedule throughput2
       //Simulator::Schedule (Seconds (1), &CalculateThroughput1);
-        
+
       // Schedule throughput2
       //Simulator::Schedule (Seconds (1), &CalculateThroughput2, monitor, &flowHelper);
-      
+
       //Schedule throughput3
-      Config::ConnectWithoutContext("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx",MakeCallback (&ReceivePacket));
-      Simulator::Schedule(Seconds(1), &CalculateThroughput3, tcpAduSize);
-      
+      Config::ConnectWithoutContext ("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx",
+                                     MakeCallback (&ReceivePacket));
+      Simulator::Schedule (Seconds (1), &CalculateThroughput3, tcpAduSize);
+
       // Beware: if RTT is modified, the Rx buffer may not be created before
       // trace registration, which will cause an error. Increase the scheduled time
       // as necessary to make sure the trace is registered after buffer creation.
@@ -473,11 +490,11 @@ main (int argc, char *argv[])
       accessLink.EnablePcapAll (prefixFileName, true);
     }
 
-// olga: flowHelper declaration moved earlier
-//  if (flowMonitor)
-//    {
-//      flowHelper.InstallAll ();
-//    }
+  // olga: flowHelper declaration moved earlier
+  //  if (flowMonitor)
+  //    {
+  //      flowHelper.InstallAll ();
+  //    }
 
   // Run simulation
   Simulator::Stop (Seconds (stopTime));
@@ -490,7 +507,7 @@ main (int argc, char *argv[])
     {
       flowHelper.SerializeToXmlFile (prefixFileName + ".flowmonitor", true, true);
     }
-    
+
   // added by olga
   //double averageThroughput = ((sink->GetTotalRx () * 8) / (1e6 * duration));
 
