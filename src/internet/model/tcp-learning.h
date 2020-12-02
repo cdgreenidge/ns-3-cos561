@@ -32,6 +32,8 @@ private:
   double m_current;
 };
 
+int discretize (double lower, double upper, int numSteps, double item);
+
 class TcpSocketState;
 
 class TcpLearning : public TcpNewReno

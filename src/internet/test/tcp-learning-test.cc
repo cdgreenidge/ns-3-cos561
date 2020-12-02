@@ -75,6 +75,28 @@ private:
   };
 };
 
+class DiscretizeTest : public TestCase
+{
+public:
+  DiscretizeTest () : TestCase ("Test discretize"){};
+
+private:
+  virtual void
+  DoRun ()
+  {
+    double lower = 10.0;
+    double upper = 11.0;
+    int numSteps = 10;
+
+    NS_TEST_ASSERT_MSG_EQ (discretize (lower, upper, numSteps, 9.0), 0, "Test discretize");
+    NS_TEST_ASSERT_MSG_EQ (discretize (lower, upper, numSteps, 10.0), 0, "Test discretize");
+    NS_TEST_ASSERT_MSG_EQ (discretize (lower, upper, numSteps, 10.15), 1, "Test discretize");
+    NS_TEST_ASSERT_MSG_EQ (discretize (lower, upper, numSteps, 10.55), 5, "Test discretize");
+    NS_TEST_ASSERT_MSG_EQ (discretize (lower, upper, numSteps, 11.0), 9, "Test discretize");
+    NS_TEST_ASSERT_MSG_EQ (discretize (lower, upper, numSteps, 12.0), 9, "Test discretize");
+  };
+};
+
 /**
  * \ingroup internet-test
  * \ingroup tests
@@ -88,6 +110,7 @@ public:
   {
     AddTestCase (new MovingAvgTest (), TestCase::QUICK);
     AddTestCase (new CurrentBestRatioTest (), TestCase::QUICK);
+    AddTestCase (new DiscretizeTest (), TestCase::QUICK);
   }
 };
 

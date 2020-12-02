@@ -1,3 +1,5 @@
+#include <assert.h>
+#include <cmath>
 #include "tcp-learning.h"
 #include "tcp-socket-state.h"
 
@@ -67,6 +69,25 @@ double
 CurrentBestRatio::Ratio ()
 {
   return m_current / m_best;
+}
+
+int
+discretize (double lower, double upper, int numSteps, double item)
+{
+  assert (upper >= lower);
+  double zeroToOne = (item - lower) / (upper - lower);
+  // Set upper bound to the first float smaller than 1.0 so we don't get
+  // numsteps + 1 bins when we floor
+  double upperBound = std::nextafter (1.0, 0.0);
+  if (zeroToOne < 0.0)
+    {
+      zeroToOne = 0.0;
+    }
+  else if (zeroToOne > upperBound)
+    {
+      zeroToOne = upperBound;
+    }
+  return (int) (10 * zeroToOne);
 }
 
 NS_LOG_COMPONENT_DEFINE ("TcpLearning");
