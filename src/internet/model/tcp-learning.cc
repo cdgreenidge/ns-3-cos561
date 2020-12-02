@@ -7,6 +7,18 @@
 
 namespace ns3 {
 
+RunningDifference::RunningDifference () : m_old (0.0)
+{
+}
+
+double
+RunningDifference::RecordAndCalculate (double item)
+{
+  double difference = item - m_old;
+  m_old = item;
+  return difference;
+}
+
 MovingAvg::MovingAvg (int size)
     : m_underfilled (true), m_index (0), m_maxSize (size), m_buffer (std::vector<double> ())
 {

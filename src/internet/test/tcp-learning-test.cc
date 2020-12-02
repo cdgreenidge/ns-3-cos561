@@ -10,12 +10,31 @@ using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("TcpLearningTestSuite");
 
-/**
- * \ingroup internet-test
- * \ingroup tests
- *
- * \brief TcpLearning C-AIMD algorithm tests.
- */
+class RunningDifferenceTest : public TestCase
+{
+public:
+  RunningDifferenceTest () : TestCase ("Test running difference"){};
+
+private:
+  virtual void
+  DoRun ()
+  {
+    // Test that moving average is the initial value on initialization
+    // It's technically undefined, but this value won't blow anything up like a NaN
+    // would
+    RunningDifference diff = RunningDifference ();
+
+    double out;
+
+    out = diff.RecordAndCalculate (1.0);
+    NS_TEST_ASSERT_MSG_EQ (out, 1.0, "Test running difference");
+    out = diff.RecordAndCalculate (1.5);
+    NS_TEST_ASSERT_MSG_EQ (out, 1.5 - 1.0, "Test running difference");
+    out = diff.RecordAndCalculate (1.7);
+    NS_TEST_ASSERT_MSG_EQ (out, 1.7 - 1.5, "Test running difference");
+  };
+};
+
 class MovingAvgTest : public TestCase
 {
 public:
@@ -108,6 +127,7 @@ class TcpLearningTestSuite : public TestSuite
 public:
   TcpLearningTestSuite () : TestSuite ("tcp-learning-test", UNIT)
   {
+    AddTestCase (new RunningDifferenceTest (), TestCase::QUICK);
     AddTestCase (new MovingAvgTest (), TestCase::QUICK);
     AddTestCase (new CurrentBestRatioTest (), TestCase::QUICK);
     AddTestCase (new DiscretizeTest (), TestCase::QUICK);

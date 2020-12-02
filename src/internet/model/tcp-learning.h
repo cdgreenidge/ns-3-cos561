@@ -6,6 +6,16 @@
 
 namespace ns3 {
 
+class RunningDifference
+{
+public:
+  RunningDifference ();
+  double RecordAndCalculate (double item);
+
+private:
+  double m_old;
+};
+
 class MovingAvg
 {
 public:
