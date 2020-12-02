@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <cmath>
+#include "ns3/simulator.h"
 #include "tcp-learning.h"
 #include "tcp-socket-state.h"
 
@@ -115,22 +116,46 @@ TcpLearning::GetTypeId (void)
   return tid;
 }
 
-TcpLearning::TcpLearning (void) : TcpNewReno ()
-// m_numIntervals (10),
-// m_movingAverageWindowSize (5),
-// m_ackInterarrivalLower (0.0),
-// m_ackInterarrivalUpper (0.1),
-// m_packetInterarrivalLower (0.0),
-// m_packetInterarrivalUpper (0.1),
-// m_rttRatioLower (1.0),
-// m_rttRatioUpper (100.0),
-// m_ssthreshLower (0.0),
-// m_ssthreshUpper (100000.0)
+TcpLearning::TcpLearning ()
+    : TcpNewReno (),
+      // m_numIntervals (10),
+      m_movingAverageWindowSize (5),
+      // m_ackInterarrivalLower (0.0),
+      // m_ackInterarrivalUpper (200.0),
+      // m_packetInterarrivalLower (0.0),
+      // m_packetInterarrivalUpper (200.0),
+      // m_rttRatioLower (1.0),
+      // m_rttRatioUpper (100.0),
+      // m_ssthreshLower (0.0),
+      // m_ssthreshUpper (100000.0),
+      m_ackTimeDiff (),
+      m_packetTimeDiff (),
+      m_ackTimeAvg (m_movingAverageWindowSize),
+      m_packetTimeAvg (m_movingAverageWindowSize),
+      m_rttRatio (),
+      m_ssThresh (0)
 {
   NS_LOG_FUNCTION (this);
 }
 
-TcpLearning::TcpLearning (const TcpLearning &sock) : TcpNewReno (sock)
+TcpLearning::TcpLearning (const TcpLearning &sock)
+    : TcpNewReno (sock),
+      // m_numIntervals (10),
+      m_movingAverageWindowSize (sock.m_movingAverageWindowSize),
+      // m_ackInterarrivalLower (0.0),
+      // m_ackInterarrivalUpper (200.0),
+      // m_packetInterarrivalLower (0.0),
+      // m_packetInterarrivalUpper (200.0),
+      // m_rttRatioLower (1.0),
+      // m_rttRatioUpper (100.0),
+      // m_ssthreshLower (0.0),
+      // m_ssthreshUpper (100000.0),
+      m_ackTimeDiff (sock.m_ackTimeDiff),
+      m_packetTimeDiff (sock.m_packetTimeDiff),
+      m_ackTimeAvg (sock.m_ackTimeAvg),
+      m_packetTimeAvg (sock.m_packetTimeAvg),
+      m_rttRatio (sock.m_rttRatio),
+      m_ssThresh (sock.m_ssThresh)
 {
   NS_LOG_FUNCTION (this);
 }
@@ -152,6 +177,11 @@ void
 TcpLearning::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t packetsAcked, const Time &rtt)
 {
   NS_LOG_FUNCTION (this << tcb << packetsAcked << rtt);
+  double ackTime = Simulator::Now ().GetMilliSeconds ();
+  m_ackTimeAvg.Record (m_ackTimeDiff.RecordAndCalculate (ackTime));
+  m_packetTimeAvg.Record (m_packetTimeDiff.RecordAndCalculate (tcb->m_rcvTimestampValue));
+  m_rttRatio.Record (rtt.GetMilliSeconds ());
+  m_ssThresh = (double) tcb->m_ssThresh;
   return;
 }
 

@@ -100,9 +100,9 @@ public:
   virtual Ptr<TcpCongestionOps> Fork ();
 
 private:
-  // State discretization parameters. All times in seconds.
+  // State discretization parameters. All times in milliseconds.
   // int m_numIntervals;
-  // int m_movingAverageWindowSize;
+  int m_movingAverageWindowSize;
   // double m_ackInterarrivalLower;
   // double m_ackInterarrivalUpper;
   // double m_packetInterarrivalLower;
@@ -111,6 +111,13 @@ private:
   // double m_rttRatioUpper;
   // double m_ssthreshLower;
   // double m_ssthreshUpper;
+  // State discretization helpers
+  RunningDifference m_ackTimeDiff;
+  RunningDifference m_packetTimeDiff;
+  MovingAvg m_ackTimeAvg;
+  MovingAvg m_packetTimeAvg;
+  CurrentBestRatio m_rttRatio;
+  double m_ssThresh;
 };
 
 } // namespace ns3
