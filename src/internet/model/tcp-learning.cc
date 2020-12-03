@@ -143,7 +143,7 @@ FuzzyKanerva::FuzzyKanerva ()
   assert (m_actionToCwndChange.size () == m_numActions);
 
   std::uniform_int_distribution<int> stateDist (0, m_numIntervals - 1);
-  for (std::vector<int> i : m_prototypeStates)
+  for (std::vector<int> &i : m_prototypeStates)
     {
       i.resize (m_stateDim);
       std::generate (i.begin (), i.end (), [&] () { return stateDist (m_rng); });
@@ -154,13 +154,11 @@ FuzzyKanerva::FuzzyKanerva ()
 }
 
 int
-FuzzyKanerva::Main (double time, double ackTime, double packetTime, double rttRatio,
-                    double ssThresh, double throughput, double delay)
+FuzzyKanerva::Main ()
 {
-  UpdateState (time, ackTime, packetTime, rttRatio, ssThresh, throughput, delay);
   if (m_currentUtility == m_prevUtility)
     {
-      return m_prevAction;
+      return m_actionToCwndChange[m_prevAction];
     }
   return Learn ();
 }
@@ -168,8 +166,6 @@ FuzzyKanerva::Main (double time, double ackTime, double packetTime, double rttRa
 int
 FuzzyKanerva::Learn ()
 {
-  // TODO: decay learning rate
-
   // Algorithm 1, line 9
   UpdateReward ();
   // We already have the current state, no need to get it
@@ -335,6 +331,12 @@ TcpLearning::GetName () const
   NS_LOG_FUNCTION (this);
 
   return "TcpLearning";
+}
+
+void
+TcpLearning::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
+{
+  tcb->m_cWnd = m_agent.Main ();
 }
 
 // This function is called on every ACK

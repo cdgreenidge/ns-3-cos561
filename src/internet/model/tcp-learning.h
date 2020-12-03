@@ -78,8 +78,7 @@ public:
 
   FuzzyKanerva ();
   // Returns action to apply to cwnd
-  int Main (double time, double ackTime, double packetTime, double rttRatio, double ssThresh,
-            double throughput, double delay);
+  int Main ();
   int Learn ();
   std::vector<int> GetCurrentState ();
   double GetMembershipGrade (const std::vector<int> &state0, int action0,
@@ -156,6 +155,14 @@ public:
    * \param rtt last RTT
    */
   virtual void PktsAcked (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked, const Time &rtt);
+
+  /**
+   * \brief Adjust cwnd following Illinois congestion avoidance algorithm
+   *
+   * \param tcb internal congestion state
+   * \param segmentsAcked count of segments ACKed
+   */
+  virtual void IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked);
 
   virtual Ptr<TcpCongestionOps> Fork ();
 
