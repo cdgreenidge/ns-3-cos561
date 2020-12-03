@@ -66,7 +66,7 @@ def configure(conf):
         conf.report_optional_feature("nsc", "Network Simulation Cradle", False,
                                      "NSC not found (see option --with-nsc)")
         return
-    
+
     if Utils.unversioned_sys_platform() in ['linux', 'freebsd']:
         arch = os.uname()[4]
     else:
@@ -78,7 +78,7 @@ def configure(conf):
         conf.check_nonfatal(mandatory=True, lib='dl', define_name='HAVE_DL', uselib_store='DL')
         ok = True
     conf.msg('Checking for NSC supported architecture ' + (arch or ''), ok)
-    
+
     if not ok:
         conf.env['NSC_ENABLED'] = False
         conf.report_optional_feature("nsc", "Network Simulation Cradle", False,
@@ -114,6 +114,7 @@ def build(bld):
         'model/ipv4-end-point.cc',
         'model/udp-l4-protocol.cc',
         'model/tcp-l4-protocol.cc',
+        'model/tcp-learning.cc',
         'model/arp-header.cc',
         'model/arp-cache.cc',
         'model/arp-l3-protocol.cc',
@@ -153,7 +154,7 @@ def build(bld):
         'model/tcp-congestion-ops.cc',
         'model/tcp-linux-reno.cc',
         'model/tcp-westwood.cc',
-        'model/tcp-scalable.cc', 
+        'model/tcp-scalable.cc',
         'model/tcp-veno.cc',
         'model/tcp-bic.cc',
         'model/tcp-yeah.cc',
@@ -274,6 +275,7 @@ def build(bld):
         'test/tcp-bic-test.cc',
         'test/tcp-yeah-test.cc',
         'test/tcp-illinois-test.cc',
+        'test/tcp-learning-test.cc',
         'test/tcp-htcp-test.cc',
         'test/tcp-lp-test.cc',
         'test/tcp-ledbat-test.cc',
@@ -312,7 +314,7 @@ def build(bld):
         internet_test.source.extend([
         #   'test/internet-examples-test-suite.cc',
             ])
-    
+
     privateheaders = bld(features='ns3privateheader')
     privateheaders.module = 'internet'
     privateheaders.source = [
@@ -346,6 +348,7 @@ def build(bld):
         'model/arp-l3-protocol.h',
         'model/udp-l4-protocol.h',
         'model/tcp-l4-protocol.h',
+        'model/tcp-learning.h',
         'model/icmpv4-l4-protocol.h',
         'model/ip-l4-protocol.h',
         'model/arp-header.h',
