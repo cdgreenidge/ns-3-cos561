@@ -2,6 +2,8 @@
 #define TCPLEARNING_H
 
 #include "tcp-congestion-ops.h"
+#include <array>
+#include <random>
 #include <vector>
 
 namespace ns3 {
@@ -44,7 +46,65 @@ private:
 
 int discretize (double lower, double upper, int numSteps, double item);
 
-class TcpSocketState;
+class FuzzyKanerva
+{
+public:
+  const int m_seed;
+
+  // State discretization parameters. All times in ms.
+  const int m_numIntervals;
+  const double m_ackTimeLower;
+  const double m_ackTimeUpper;
+  const double m_packetTimeLower;
+  const double m_packetTimeUpper;
+  const double m_rttRatioLower;
+  const double m_rttRatioUpper;
+  const double m_ssThreshLower;
+  const double m_ssThreshUpper;
+
+  // Fuzzy Kanerva learning parameters
+  const int m_numActions;
+  const int m_numPrototypes;
+  const int m_stateDim;
+  const double m_delta; // Weight factor for utility
+  const double m_t; // Reward time step, in ms, not in s as in the paper
+  const double m_sigma; // Membership grade standard deviation
+  const double m_gamma; // Discount factor, in [0, 1]
+  const double m_epsilon; // Exploration rate
+  const double m_alpha; // Learning rate
+  const double m_alphaDecayFactor; // Learning rate decay factor
+  const double m_alphaDecayInterval; // Learning rate decay interval, in ms
+  const std::vector<int> m_actionToCwndChange; // Table II in paper
+
+  FuzzyKanerva ();
+  // Returns action to apply to cwnd
+  int Main (double time, double ackTime, double packetTime, double rttRatio, double ssThresh,
+            double throughput, double delay);
+  int Learn ();
+  std::vector<int> GetCurrentState ();
+  double GetMembershipGrade (const std::vector<int> &state0, int action0,
+                             const std::vector<int> &state1, int action1);
+  void UpdateState (double time, double ackTime, double packetTime, double rttRatio,
+                    double ssThresh, double throughput, double delay);
+  void UpdateReward ();
+
+private:
+  // Note: the "prev" variables are only updated when the Learn() method is called,
+  // the current state, utility, and time get updated on every ACK
+  std::mt19937 m_rng;
+  double m_prevTime; // In ms
+  double m_currentTime; // In ms
+  std::vector<int> m_prevState;
+  std::vector<int> m_currentState;
+  double m_prevUtility; // Only updated when the reward updates
+  double m_currentUtility;
+  int m_prevAction;
+  int m_reward;
+  std::vector<std::vector<int>> m_prototypeStates;
+  std::vector<int> m_prototypeActions;
+  std::vector<double> m_thetas;
+  std::uniform_int_distribution<int> m_actionDist; // Random distribution over actions
+};
 
 class TcpLearning : public TcpNewReno
 {
@@ -100,24 +160,17 @@ public:
   virtual Ptr<TcpCongestionOps> Fork ();
 
 private:
-  // State discretization parameters. All times in milliseconds.
-  // int m_numIntervals;
+  // State helpers
   int m_movingAverageWindowSize;
-  // double m_ackInterarrivalLower;
-  // double m_ackInterarrivalUpper;
-  // double m_packetInterarrivalLower;
-  // double m_packetInterarrivalUpper;
-  // double m_rttRatioLower;
-  // double m_rttRatioUpper;
-  // double m_ssthreshLower;
-  // double m_ssthreshUpper;
-  // State discretization helpers
   RunningDifference m_ackTimeDiff;
   RunningDifference m_packetTimeDiff;
   MovingAvg m_ackTimeAvg;
   MovingAvg m_packetTimeAvg;
   CurrentBestRatio m_rttRatio;
   double m_ssThresh;
+
+  // Learning agent
+  FuzzyKanerva m_agent;
 };
 
 } // namespace ns3

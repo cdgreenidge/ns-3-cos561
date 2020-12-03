@@ -116,6 +116,37 @@ private:
   };
 };
 
+class FuzzyKanervaUpdateStateTest : public TestCase
+{
+public:
+  FuzzyKanervaUpdateStateTest () : TestCase ("Test FuzzyKanerva.UpdateState ()"){};
+
+private:
+  virtual void
+  DoRun ()
+  {
+    FuzzyKanerva agent;
+    std::vector<int> initial = {0, 0, 0, 0};
+    bool isEqual = initial == agent.GetCurrentState ();
+    NS_TEST_ASSERT_MSG_EQ (isEqual, true, "Test FuzzyKanerva.UpdateState ()");
+
+    // Test that state is discretized and updated properly
+    double ackTime = agent.m_ackTimeLower +
+                     0.1 * (agent.m_ackTimeUpper - agent.m_ackTimeLower) / agent.m_numIntervals;
+    double packetTime =
+        agent.m_packetTimeLower +
+        2.1 * (agent.m_packetTimeUpper - agent.m_packetTimeLower) / agent.m_numIntervals;
+    double rttRatio = agent.m_rttRatioLower +
+                      4.1 * (agent.m_rttRatioUpper - agent.m_rttRatioLower) / agent.m_numIntervals;
+    double ssThresh = agent.m_ssThreshLower +
+                      6.1 * (agent.m_ssThreshUpper - agent.m_ssThreshLower) / agent.m_numIntervals;
+    agent.UpdateState (1.0, ackTime, packetTime, rttRatio, ssThresh, 1.0, 0.1);
+    std::vector<int> expected = {0, 2, 4, 6};
+    isEqual = expected == agent.GetCurrentState ();
+    NS_TEST_ASSERT_MSG_EQ (isEqual, true, "Test FuzzyKanerva.UpdateState ()");
+  };
+};
+
 /**
  * \ingroup internet-test
  * \ingroup tests
@@ -131,6 +162,7 @@ public:
     AddTestCase (new MovingAvgTest (), TestCase::QUICK);
     AddTestCase (new CurrentBestRatioTest (), TestCase::QUICK);
     AddTestCase (new DiscretizeTest (), TestCase::QUICK);
+    AddTestCase (new FuzzyKanervaUpdateStateTest (), TestCase::QUICK);
   }
 };
 
