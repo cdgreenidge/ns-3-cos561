@@ -213,7 +213,7 @@ CalculateThroughput1 ()
   // https://www.nsnam.org/doxygen/wifi-tcp_8cc_source.html
   Time now = Simulator::Now (); /* Return the simulator's virtual time. */
   double cur = (sink->GetTotalRx () - lastTotalRx) * (double) 8 / 1024 / 1024 /
-               0.1; /* Convert Application RX Packets to MBits. */
+               1; /* Convert Application RX Packets to MBits. */
   //std::cout << now.GetSeconds () << "s: \t" << cur << " Mbit/s" << std::endl;
   lastTotalRx = sink->GetTotalRx ();
   Simulator::Schedule (Seconds (1), &CalculateThroughput1);
@@ -457,7 +457,7 @@ main (int argc, char *argv[])
   std::string delay = "25ms"; // For 100ms RTT total
   bool tracing = false;
   std::string prefixFileName = "simple-topology";
-  uint32_t mtuBytes = 15728; // So that 50 packets fit in the buffer
+    uint32_t mtuBytes = 1875; //15728; // So that 50 packets fit in the buffer
   double duration = 1200.0;
   uint32_t run = 0;
   bool flowMonitor = false;
@@ -514,8 +514,11 @@ main (int argc, char *argv[])
   // the BDP is 1e-1 * 7.86432e6 = 786432, roughly 0.7 Mb
   // Packet size should be floor(786432 / 50) = 15,728 bits so 50 packets fit in the
   // buffer
-  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (786432));
-  Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (786432));
+    // olga: change BDP = 0.1 * 7.5e6n= 750000 bits = 93750 bytes
+    // packet size should be 750000 / 50 = 15000 bits = 1875 bytes
+    // set size of tcp send/recieve buffers to be large
+  Config::SetDefault ("ns3::TcpSocket::RcvBufSize", UintegerValue (1000000));
+  Config::SetDefault ("ns3::TcpSocket::SndBufSize", UintegerValue (1000000));
   Config::SetDefault ("ns3::TcpSocketBase::Sack", BooleanValue (sack));
   Config::SetDefault ("ns3::TcpL4Protocol::RecoveryType",
                       TypeIdValue (TypeId::LookupByName (recovery)));
@@ -546,6 +549,9 @@ main (int argc, char *argv[])
   PointToPointHelper bottleneckLink;
   bottleneckLink.SetDeviceAttribute ("DataRate", StringValue (bandwidth));
   bottleneckLink.SetChannelAttribute ("Delay", StringValue (delay));
+
+    // set bottleneck queue buffer size
+  bottleneckLink.SetQueue ("ns3::DropTailQueue", "MaxSize", QueueSizeValue (QueueSize ("50p")));
 
   InternetStackHelper stack;
 
@@ -629,16 +635,16 @@ main (int argc, char *argv[])
       
       // throughput added by olga
 
-      // Schedule throughput2
-      //Simulator::Schedule (Seconds (1), &CalculateThroughput1);
+      // Schedule throughput1
+      Simulator::Schedule (Seconds (1), &CalculateThroughput1);
 
       // Schedule throughput2
       //Simulator::Schedule (Seconds (1), &CalculateThroughput2, monitor, &flowHelper);
 
       //Schedule throughput3
-      Config::ConnectWithoutContext ("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx",
-                                     MakeCallback (&ReceivePacket));
-      Simulator::Schedule (Seconds (1), &CalculateThroughput3, tcpAduSize);
+//      Config::ConnectWithoutContext ("/NodeList/*/ApplicationList/*/$ns3::PacketSink/Rx",
+//                                     MakeCallback (&ReceivePacket));
+//      Simulator::Schedule (Seconds (1), &CalculateThroughput3, tcpAduSize);
 
       // Beware: if RTT is modified, the Rx buffer may not be created before
       // trace registration, which will cause an error. Increase the scheduled time
