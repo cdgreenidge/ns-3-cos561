@@ -303,7 +303,6 @@ TcpLearning::TcpLearning ()
       m_ssThresh (0),
       m_agent ()
 {
-  NS_LOG_FUNCTION (this);
 }
 
 TcpLearning::TcpLearning (const TcpLearning &sock)
@@ -317,19 +316,15 @@ TcpLearning::TcpLearning (const TcpLearning &sock)
       m_ssThresh (sock.m_ssThresh),
       m_agent (sock.m_agent)
 {
-  NS_LOG_FUNCTION (this);
 }
 
 TcpLearning::~TcpLearning (void)
 {
-  NS_LOG_FUNCTION (this);
 }
 
 std::string
 TcpLearning::GetName () const
 {
-  NS_LOG_FUNCTION (this);
-
   return "TcpLearning";
 }
 
@@ -343,7 +338,6 @@ TcpLearning::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
 void
 TcpLearning::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t packetsAcked, const Time &rtt)
 {
-  NS_LOG_FUNCTION (this << tcb << packetsAcked << rtt);
   double time = Simulator::Now ().GetMilliSeconds ();
   m_ackTimeAvg.Record (m_ackTimeDiff.RecordAndCalculate (time));
   m_packetTimeAvg.Record (m_packetTimeDiff.RecordAndCalculate (tcb->m_rcvTimestampValue));
@@ -354,15 +348,29 @@ TcpLearning::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t packetsAcked, const Ti
   double throughput = tcb->m_segmentSize * packetsAcked; // in bytes
   double delay = rtt.GetSeconds () / 2;
 
-  m_agent.UpdateState (time, m_ackTimeAvg.Avg (), m_packetTimeAvg.Avg (), m_rttRatio.Ratio (),
-                       m_ssThresh, throughput, delay);
+  double ackTimeAvg = m_ackTimeAvg.Avg ();
+  double packetTimeAvg = m_packetTimeAvg.Avg ();
+  double rttRatio = m_rttRatio.Ratio ();
+
+  m_agent.UpdateState (time, ackTimeAvg, packetTimeAvg, rttRatio, m_ssThresh, throughput, delay);
+
+  // Log values
+  NS_LOG_DEBUG ("ack," << time << ",ackTimeAvg," << ackTimeAvg);
+  NS_LOG_DEBUG ("ack," << time << ",packetTimeAvg," << packetTimeAvg);
+  NS_LOG_DEBUG ("ack," << time << ",rttRatio," << rttRatio);
+  NS_LOG_DEBUG ("ack," << time << ",ssthresh," << m_ssThresh);
+  NS_LOG_DEBUG ("ack," << time << ",throughput," << throughput);
+  NS_LOG_DEBUG ("ack," << time << ",delay," << delay);
+  std::vector<int> state = m_agent.GetCurrentState ();
+  NS_LOG_DEBUG ("ack," << time << ",state0," << state[0]);
+  NS_LOG_DEBUG ("ack," << time << ",state1," << state[1]);
+  NS_LOG_DEBUG ("ack," << time << ",state2," << state[2]);
+  NS_LOG_DEBUG ("ack," << time << ",state3," << state[3]);
 }
 
 Ptr<TcpCongestionOps>
 TcpLearning::Fork (void)
 {
-  NS_LOG_FUNCTION (this);
-
   return CopyObject<TcpLearning> (this);
 }
 
