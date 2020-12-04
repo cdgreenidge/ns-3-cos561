@@ -87,7 +87,9 @@ public:
                     double ssThresh, double throughput, double delay);
   void UpdateReward ();
 
-private:
+  // These variables below should be private if we were following good software
+  // engineering practice, but who has time to write all those get methods?
+
   // Note: the "prev" variables are only updated when the Learn() method is called,
   // the current state, utility, and time get updated on every ACK
   std::mt19937 m_rng;
@@ -162,7 +164,7 @@ public:
    * \param tcb internal congestion state
    * \param segmentsAcked count of segments ACKed
    */
-  virtual void IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked);
+  virtual void CongestionAvoidance (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked);
 
   virtual Ptr<TcpCongestionOps> Fork ();
 

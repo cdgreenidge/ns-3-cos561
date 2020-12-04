@@ -111,9 +111,9 @@ FuzzyKanerva::FuzzyKanerva ()
       m_packetTimeLower (0.0),
       m_packetTimeUpper (200.0),
       m_rttRatioLower (1.0),
-      m_rttRatioUpper (100.0),
-      m_ssThreshLower (0.0),
-      m_ssThreshUpper (100000.0),
+      m_rttRatioUpper (5.0),
+      m_ssThreshLower (1000.0),
+      m_ssThreshUpper (10000000000.0),
       m_numActions (5),
       m_numPrototypes (10),
       m_stateDim (4),
@@ -294,7 +294,7 @@ TcpLearning::GetTypeId (void)
 
 TcpLearning::TcpLearning ()
     : TcpNewReno (),
-      m_movingAverageWindowSize (5),
+      m_movingAverageWindowSize (100),
       m_ackTimeDiff (),
       m_packetTimeDiff (),
       m_ackTimeAvg (m_movingAverageWindowSize),
@@ -329,9 +329,10 @@ TcpLearning::GetName () const
 }
 
 void
-TcpLearning::IncreaseWindow (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
+TcpLearning::CongestionAvoidance (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
 {
   tcb->m_cWnd = m_agent.Main ();
+  NS_LOG_DEBUG ("learn," << m_agent.m_currentTime << ",reward," << m_agent.m_reward);
 }
 
 // This function is called on every ACK
@@ -345,8 +346,8 @@ TcpLearning::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t packetsAcked, const Ti
   m_ssThresh = (double) tcb->m_ssThresh;
 
   // Calculate throughput
-  double throughput = tcb->m_segmentSize * packetsAcked; // in bytes
-  double delay = rtt.GetSeconds () / 2;
+  double throughput = (tcb->m_segmentSize * packetsAcked); // in bytes
+  double delay = rtt.GetMilliSeconds () / 2;
 
   double ackTimeAvg = m_ackTimeAvg.Avg ();
   double packetTimeAvg = m_packetTimeAvg.Avg ();
@@ -366,6 +367,7 @@ TcpLearning::PktsAcked (Ptr<TcpSocketState> tcb, uint32_t packetsAcked, const Ti
   NS_LOG_DEBUG ("ack," << time << ",state1," << state[1]);
   NS_LOG_DEBUG ("ack," << time << ",state2," << state[2]);
   NS_LOG_DEBUG ("ack," << time << ",state3," << state[3]);
+  NS_LOG_DEBUG ("ack," << time << ",utility," << m_agent.m_currentUtility);
 }
 
 Ptr<TcpCongestionOps>
