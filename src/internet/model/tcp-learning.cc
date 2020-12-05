@@ -331,7 +331,9 @@ TcpLearning::GetName () const
 void
 TcpLearning::CongestionAvoidance (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
 {
-  tcb->m_cWnd = m_agent.Main ();
+  int action = m_agent.Main ();
+  tcb->m_cWnd += action;
+  NS_LOG_DEBUG ("learn," << m_agent.m_currentTime << ",action," << action);
   NS_LOG_DEBUG ("learn," << m_agent.m_currentTime << ",reward," << m_agent.m_reward);
 }
 
