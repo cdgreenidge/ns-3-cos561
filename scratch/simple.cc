@@ -41,10 +41,7 @@ static Ptr<OutputStreamWrapper> inFlightStream;
 static Ptr<OutputStreamWrapper> ackReceiveTimeStream;
 static Ptr<OutputStreamWrapper> packetReceiveTimeStream;
 
-AsciiTraceHelper ascii;
-std::string throughput_tr_file_name = "simple-topology-throughput.data";
-static Ptr<OutputStreamWrapper> throughputStream =
-    ascii.CreateFileStream (throughput_tr_file_name.c_str ());
+static Ptr<OutputStreamWrapper> throughputStream;
 
 static uint32_t cWndValue;
 static uint32_t ssThreshValue;
@@ -636,6 +633,9 @@ main (int argc, char *argv[])
       // throughput added by olga
 
       // Schedule throughput1
+      AsciiTraceHelper ascii_helper;
+      std::string throughput_tr_file_name = prefixFileName + "-throughput.data";
+      throughputStream = ascii_helper.CreateFileStream (throughput_tr_file_name.c_str ());
       Simulator::Schedule (Seconds (1), &CalculateThroughput1);
 
       // Schedule throughput2
