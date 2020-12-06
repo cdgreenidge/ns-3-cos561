@@ -107,9 +107,9 @@ FuzzyKanerva::FuzzyKanerva ()
     : m_seed (42),
       m_numIntervals (10),
       m_ackTimeLower (0.0),
-      m_ackTimeUpper (200.0),
+      m_ackTimeUpper (10.0),
       m_packetTimeLower (0.0),
-      m_packetTimeUpper (200.0),
+      m_packetTimeUpper (10.0),
       m_rttRatioLower (1.0),
       m_rttRatioUpper (5.0),
       m_ssThreshLower (1000.0),
@@ -332,7 +332,7 @@ void
 TcpLearning::CongestionAvoidance (Ptr<TcpSocketState> tcb, uint32_t segmentsAcked)
 {
   int action = m_agent.Main ();
-  tcb->m_cWnd += action;
+  tcb->m_cWnd += action * tcb->m_segmentSize;
   NS_LOG_DEBUG ("learn," << m_agent.m_currentTime << ",action," << action);
   NS_LOG_DEBUG ("learn," << m_agent.m_currentTime << ",reward," << m_agent.m_reward);
 }
