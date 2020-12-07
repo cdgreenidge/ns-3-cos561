@@ -156,10 +156,6 @@ FuzzyKanerva::FuzzyKanerva ()
 int
 FuzzyKanerva::Main ()
 {
-  if (m_currentUtility == m_prevUtility)
-    {
-      return m_actionToCwndChange[m_prevAction];
-    }
   return Learn ();
 }
 
