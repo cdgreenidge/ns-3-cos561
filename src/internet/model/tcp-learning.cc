@@ -265,9 +265,15 @@ FuzzyKanerva::UpdateReward ()
     {
       return;
     }
-  if (m_currentUtility > m_prevUtility)
+  double eps = 1.0e-3;
+  double delta = m_currentUtility - m_prevUtility;
+  if (delta > 0 && delta > eps)
     {
       m_reward = 2;
+    }
+  else if (abs (delta) < eps)
+    {
+      m_reward = 0;
     }
   else
     {
